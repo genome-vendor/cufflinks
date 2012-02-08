@@ -48,7 +48,7 @@
 /* Define to 1 if you have the <string.h> header file. */
 #undef HAVE_STRING_H
 
-/* Define to 1 if `totalram' is member of `struct sysinfo'. */
+/* Define to 1 if `totalram' is a member of `struct sysinfo'. */
 #undef HAVE_STRUCT_SYSINFO_TOTALRAM
 
 /* Define to 1 if you have the <sys/stat.h> header file. */
@@ -78,6 +78,9 @@
 /* Define to the one symbol short name of this package. */
 #undef PACKAGE_TARNAME
 
+/* Define to the home page for this package. */
+#undef PACKAGE_URL
+
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
 
@@ -99,5 +102,5 @@
 /* Define to `int' if <sys/types.h> does not define. */
 #undef pid_t
 
-/* Define to `unsigned' if <sys/types.h> does not define. */
+/* Define to `unsigned int' if <sys/types.h> does not define. */
 #undef size_t
