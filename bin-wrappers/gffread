@@ -1,0 +1,31 @@
+#! /bin/sh
+# wrapper script for cufflinks1.3.0 gffread 
+version=1.3.0
+pkg_with_version=cufflinks$version
+sandbox_path=/usr/lib/$pkg_with_version
+prog_basename=gffread
+
+# see how we were called
+#prog=`basename $0`
+#if [ $? != 0 -o -z "$prog" ]; then
+#    echo "$pkg: unable to determine program name: $0"
+#    exit 2
+#fi
+
+# see if we are on a 64-bit machine
+#if [ "`uname -m`" = x86_64 ]; then
+#    path="$path-64"
+#fi
+
+# make sure executable exists under path
+if [ ! -x "$sandbox_path/bin/$prog_basename" ]; then
+    echo "$pkg: program does not exist under $path: $prog"
+    exit 2
+fi
+
+# set up environment
+PATH=$sandbox_path:$PATH
+export PATH
+
+# execute program (should be in path)
+exec $prog_basename "$@"
