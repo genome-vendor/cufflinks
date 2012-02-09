@@ -8,9 +8,12 @@ VERSION=1.3.0
 
 override_dh_auto_install:
 	dh_auto_install
+	mkdir /tmp/sandbox-$(PKG)
+	mv ./debian/$(PKG)/usr/* /tmp/sandbox-$(PKG)
 	mkdir -p ./debian/$(PKG)/usr/lib/$(PKG)
-	mv ./debian/$(PKG)/usr/* ./debian/$(PKG)/usr/lib/$(PKG)/
+	mv /tmp/sandbox-$(PKG)/* ./debian/$(PKG)/usr/lib/$(PKG)/
+	rmdir /tmp/sandbox-$(PKG)
 	mkdir -p ./debian/$(PKG)/usr/bin/
 	for FILE in bin-wrappers/*; do \
-	  cat $$FILE | sed 's/VERSION/$(VERSION)/g' >  ./debian/$(PKG)/usr/bin/`basename $$FILE`-$(VERSION); \
+	  cat $$FILE | sed 's/VERSION/$(VERSION)/g' >  ./debian/$(PKG)/usr/bin/`basename $$FILE`$(VERSION); \
 	done
