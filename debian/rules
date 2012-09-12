@@ -1,13 +1,31 @@
 #!/usr/bin/make -f
 
 PKG=$(shell dh_listpackages)
-VERSION=1.3.0
+VER="2.0.2"
+DEB_DIR=debian/${PKG}
+PWD=$(CURDIR)
+FINAL_INST_DIR=/usr/lib/${PKG}
+DEB_INST_DIR=${PWD}/${DEB_DIR}${FINAL_INST_DIR}
 
 %:
 	dh $@
 
+build:
+	./configure --prefix=${DEB_INST_DIR}
+	make
+
+override_dh_auto_configure:
+	echo ""
+
 override_dh_auto_install:
-	dh_auto_install
-	for FILE in ./debian/$(PKG)/usr/bin/*; do \
-	  mv $$FILE ./debian/$(PKG)/usr/bin/`basename $$FILE`$(VERSION); \
+	mkdir -p ${DEB_DIR}/usr/bin
+	make install
+	mv ${DEB_INST_DIR}/bin/cufflinks ${DEB_INST_DIR}/bin/cufflinks.debpath
+	sed -e 's|$(DEB_INST_DIR)|$(FINAL_INST_DIR)|' ${DEB_INST_DIR}/bin/cufflinks.debpath > ${DEB_INST_DIR}/bin/cufflinks
+	rm ${DEB_INST_DIR}/bin/cufflinks.debpath
+	chmod 555 ${DEB_INST_DIR}/bin/cufflinks
+	for filename in ${DEB_INST_DIR}/bin/*; do \
+		file=`basename $${filename}`; \
+		echo "#!/bin/sh\nexport PATH=/usr/lib/${PKG}/bin:\$$PATH; exec $$file \$$@" > ${DEB_DIR}/usr/bin/$${file}${VER}; \
 	done
+

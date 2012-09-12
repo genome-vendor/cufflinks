@@ -25,6 +25,9 @@
   #define CHPATHSEP '\\'
   #undef off_t
   #define off_t int64_t
+  #ifndef popen
+   #define popen _popen
+  #endif
   #ifdef _fseeki64
     #define fseeko(stream, offset, origin) _fseeki64(stream, offset, origin)
   #else
@@ -61,6 +64,8 @@
 
 typedef int32_t int32;
 typedef uint32_t uint32;
+typedef int16_t int16;
+typedef uint16_t uint16;
 
 typedef unsigned char uchar;
 typedef unsigned char byte;
@@ -167,59 +172,19 @@ inline int Gintcmp(int a, int b) {
   return a-b;
 }
 
-int Gstrcmp(char* a, char* b);
+int Gstrcmp(const char* a, const char* b, int n=-1);
 //same as strcmp but doesn't crash on NULL pointers
 
-int Gstricmp(const char* a, const char* b);
+int Gstricmp(const char* a, const char* b, int n=-1);
 
-inline void swap(int &arg1, int &arg2){
- //arg1 ^= arg2;
- //arg2 ^= arg1;
- //arg1 ^= arg2;
- register int swp=arg1;
- arg1=arg2; arg2=swp;
- }
+//basic swap template function
+template<class T> void Gswap(T& lhs, T& rhs) {
+ //register T tmp=lhs;
+ T tmp=lhs; //requires copy operator
+ lhs=rhs;
+ rhs=tmp;
+}
 
-inline void swap(char* &arg1, char* &arg2){ //swap pointers!
- register char* swp=arg1;
- arg1=arg2; arg2=swp;
- }
-
-inline void swap(uint &arg1, uint &arg2) {
-  register uint swp=arg1;
-  arg1=arg2; arg2=swp;
-  }
-
-inline void swap(short &arg1, short &arg2) {
-  register short swp=arg1;
-  arg1=arg2; arg2=swp;
-  }
-
-inline void swap(unsigned short &arg1, unsigned short &arg2) {
-  register unsigned short swp=arg1;
-  arg1=arg2; arg2=swp;
-  }
-
-inline void swap(long &arg1, long &arg2) {
-  register long swp=arg1;
-  arg1=arg2; arg2=swp;
-  }
-
-inline void swap(unsigned long &arg1, unsigned long &arg2) {
-  register unsigned long swp=arg1;
-  arg1=arg2; arg2=swp;
-  }
-
-
-inline void swap(char &arg1, char &arg2) {
-  register char swp=arg1;
-  arg1=arg2; arg2=swp;
-  }
-
-inline void swap(unsigned char &arg1, unsigned char &arg2) {
-  register unsigned char swp=arg1;
-  arg1=arg2; arg2=swp;
-  }
 
 /**************** Memory management ***************************/
 
@@ -330,7 +295,7 @@ class GSeg {
      }
 
   bool overlap(uint s, uint e) {
-     if (s>e) { swap(s,e); }
+     if (s>e) { Gswap(s,e); }
      //return start<s ? (s<=end) : (start<=e);
      return (start<=e && end>=s);
      }
@@ -347,7 +312,7 @@ class GSeg {
         }
      }
   int overlapLen(uint rstart, uint rend) {
-     if (rstart>rend) { swap(rstart,rend); }
+     if (rstart>rend) { Gswap(rstart,rend); }
      if (start<rstart) {
         if (rstart>end) return 0;
         return (rend>end) ? end-rstart+1 : rend-rstart+1;
@@ -369,9 +334,6 @@ class GSeg {
   bool operator==(GSeg& d){
       return (start==d.start && end==d.end);
       }
-  bool operator>(GSeg& d){
-     return (start==d.start)?(end>d.end):(start>d.start);
-     }
   bool operator<(GSeg& d){
      return (start==d.start)?(end<d.end):(start<d.start);
      }

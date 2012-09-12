@@ -44,7 +44,7 @@ static struct option long_options[] = {
 // general options
 {"GTF",					    required_argument,		 0,			 'G'},
 {"GTF-guide",			    required_argument,		 0,			 'g'},
-{"mask-gtf",                required_argument,		 0,			 'M'},
+{"mask-file",                required_argument,		 0,			 'M'},
 {"library-type",		    required_argument,		 0,			 OPT_LIBRARY_TYPE},
 {"seed",                    required_argument,		 0,			 OPT_RANDOM_SEED},
 
@@ -96,6 +96,13 @@ static struct option long_options[] = {
 {"tile-read-sep",           required_argument,       0,          OPT_TILE_SEP}, 
     
 {"max-bundle-frags",        required_argument,        0,          OPT_MAX_FRAGS_PER_BUNDLE}, 
+{"num-frag-count-draws",	required_argument,		 0,			 OPT_NUM_FRAG_COUNT_DRAWS},
+{"num-frag-assign-draws",	required_argument,		 0,			 OPT_NUM_FRAG_ASSIGN_DRAWS},
+{"max-multiread-fraction",	required_argument,		 0,			 OPT_MAX_MULTIREAD_FRACTION},
+{"overlap-radius",       	required_argument,		 0,			 OPT_OLAP_RADIUS},
+{"max-frag-multihits",      required_argument,       0,          OPT_FRAG_MAX_MULTIHITS},
+{"no-effective-length-correction",  no_argument,     0,          OPT_NO_EFFECTIVE_LENGTH_CORRECTION},
+{"no-length-correction",  no_argument,     0,          OPT_NO_LENGTH_CORRECTION},
 {0, 0, 0, 0} // terminator
 };
 
@@ -124,9 +131,14 @@ void print_usage()
     fprintf(stderr, "  -s/--frag-len-std-dev        fragment length std deviation (unpaired reads only)   [ default:     80 ]\n");
     fprintf(stderr, "  --upper-quartile-norm        use upper-quartile normalization                      [ default:  FALSE ]\n");
     fprintf(stderr, "  --max-mle-iterations         maximum iterations allowed for MLE calculation        [ default:   5000 ]\n");
-    fprintf(stderr, "  --num-importance-samples     number of importance samples for MAP restimation      [ default:   1000 ]\n");
+    fprintf(stderr, "  --num-importance-samples     number of importance samples for MAP restimation      [    DEPRECATED   ]\n");
     fprintf(stderr, "  --compatible-hits-norm       count hits compatible with reference RNAs only        [ default:  FALSE ]\n");
     fprintf(stderr, "  --total-hits-norm            count all hits for normalization                      [ default:  TRUE  ]\n");
+    fprintf(stderr, "  --num-frag-count-draws       Number of fragment generation samples                 [ default:   1000 ]\n");
+    fprintf(stderr, "  --num-frag-assign-draws      Number of fragment assignment samples per generation  [ default:      1 ]\n");
+    fprintf(stderr, "  --max-frag-multihits         Maximum number of alignments allowed per fragment     [ default: unlim  ]\n");
+    fprintf(stderr, "  --no-effective-length-correction   No effective length correction                  [ default:  FALSE ]\n");
+    fprintf(stderr, "  --no-length-correction       No effective length correction                        [ default:  FALSE ]\n");
     
     fprintf(stderr, "\nAdvanced Assembly Options:\n");
     fprintf(stderr, "  -L/--label                   assembled transcripts have this ID prefix             [ default:   CUFF ]\n");
@@ -142,6 +154,8 @@ void print_usage()
     fprintf(stderr, "  --min-intron-length          minimum intron size allowed in genome                 [ default:     50 ]\n");
     fprintf(stderr, "  --trim-3-avgcov-thresh       minimum avg coverage required to attempt 3' trimming  [ default:     10 ]\n");
     fprintf(stderr, "  --trim-3-dropoff-frac        fraction of avg coverage below which to trim 3' end   [ default:    0.1 ]\n");
+    fprintf(stderr, "  --max-multiread-fraction     maximum fraction of allowed multireads per transcript [ default:   0.75 ]\n");
+    fprintf(stderr, "  --overlap-radius             maximum gap size to fill between transfrags (in bp)   [ default:     50 ]\n");
     
     fprintf(stderr, "\nAdvanced Reference Annotation Guided Assembly Options:\n");
 //    fprintf(stderr, "  --tile-read-len              length of faux-reads                                  [ default:    405 ]\n");
@@ -391,6 +405,41 @@ int parse_options(int argc, char** argv)
             case OPT_MAX_FRAGS_PER_BUNDLE:
             {
                 max_frags_per_bundle = parseInt(0, "--max-bundle-frags must be at least 0", print_usage);
+                break;
+            }
+            case OPT_NUM_FRAG_COUNT_DRAWS:
+            {
+                num_frag_count_draws = parseInt(1, "--num-frag-count-draws must be at least 1", print_usage);
+                break;
+            }
+            case OPT_NUM_FRAG_ASSIGN_DRAWS:
+            {
+                num_frag_assignments = parseInt(1, "--num-frag-assign-draws must be at least 1", print_usage);
+                break;
+            }
+            case OPT_MAX_MULTIREAD_FRACTION:
+            {
+                max_multiread_fraction = parseFloat(0, 1.0, "--max-multiread-fraction must be between 0 and 1.0", print_usage);
+                break;
+            }
+            case OPT_FRAG_MAX_MULTIHITS:
+            {
+                max_frag_multihits = parseInt(1, "--max-frag-multihits must be at least 1", print_usage);
+                break;
+            }
+            case OPT_OLAP_RADIUS:
+            {
+                olap_radius = parseInt(1, "--max-multiread-fraction must be at least 1", print_usage);
+                break;
+            }
+            case OPT_NO_EFFECTIVE_LENGTH_CORRECTION:
+            {
+                no_effective_length_correction = true;
+                break;
+            }
+            case OPT_NO_LENGTH_CORRECTION:
+            {
+                no_length_correction = true;
                 break;
             }
 			default:
@@ -1100,7 +1149,7 @@ void quantitate_transcript_clusters(vector<shared_ptr<Scaffold> >& scaffolds,
 
 void assemble_bundle(const RefSequenceTable& rt,
 					 HitBundle* bundle_ptr, 
-					 BiasLearner* bl_ptr,
+					 shared_ptr<BiasLearner> bl_ptr,
 					 long double map_mass,
 					 FILE* ftranscripts,
 					 FILE* fgene_abundances,
@@ -1138,11 +1187,6 @@ void assemble_bundle(const RefSequenceTable& rt,
 	{
 		case REF_DRIVEN:
 			scaffolds = bundle.ref_scaffolds();
-			if (!final_est_run && scaffolds.size() != 1) // Only learn bias on single isoforms
-			{
-				delete bundle_ptr;
-				return;
-			}
 			break;
 		case REF_GUIDED:
 			successfully_assembled = scaffolds_for_bundle(bundle, scaffolds, &bundle.ref_scaffolds());
@@ -1217,9 +1261,9 @@ void assemble_bundle(const RefSequenceTable& rt,
 	{
 		for (size_t i = 0; i < genes.size(); ++i)
 		{
-			if (genes[i].isoforms().size() == 1)
-			{
-				bl_ptr -> preProcessTranscript(genes[i].isoforms()[0].scaffold()); 
+            for (size_t j = 0; j <genes[i].isoforms().size(); ++j)
+            {
+                bl_ptr -> preProcessTranscript(genes[i].isoforms()[j].scaffold()); 
 			}
 		}
 	}
@@ -1365,7 +1409,7 @@ void assemble_bundle(const RefSequenceTable& rt,
 	delete bundle_ptr;
 }
 
-bool assemble_hits(BundleFactory& bundle_factory, BiasLearner* bl_ptr)
+bool assemble_hits(BundleFactory& bundle_factory, shared_ptr<BiasLearner> bl_ptr)
 {
 	//srand(time(0));
 		
@@ -1574,7 +1618,7 @@ void driver(const string& hit_file_name, FILE* ref_gtf, FILE* mask_gtf)
     
     //fprintf(stderr, "ReadHit delete count is %d\n", num_deleted);
     
-	BiasLearner* bl_ptr = new BiasLearner(rg_props->frag_len_dist());
+	shared_ptr<BiasLearner> bl_ptr(new BiasLearner(rg_props->frag_len_dist()));
     bundle_factory.read_group_properties(rg_props);
 
 	//if (ref_gtf) -- why? bad introns are bad
@@ -1587,13 +1631,15 @@ void driver(const string& hit_file_name, FILE* ref_gtf, FILE* mask_gtf)
 	if (corr_bias || corr_multi) final_est_run = false;
 
 	assemble_hits(bundle_factory, bl_ptr);
-    
+
 	if (final_est_run) 
-    {
-        ref_mRNAs.clear();
-        return;
-    }
-    
+	{
+	  delete &bundle_factory;
+	  //delete bl_ptr;
+	  ref_mRNAs.clear();
+	  return;
+	}
+
 	hit_factory->reset();
 	delete &bundle_factory;
 	BundleFactory bundle_factory2(hit_factory, REF_DRIVEN);
@@ -1627,6 +1673,7 @@ void driver(const string& hit_file_name, FILE* ref_gtf, FILE* mask_gtf)
 	final_est_run = true;
 	assemble_hits(bundle_factory2, bl_ptr);
 	ref_mRNAs.clear();
+	//delete bl_ptr;
 }
 
 int main(int argc, char** argv)

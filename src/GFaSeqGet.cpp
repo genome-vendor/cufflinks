@@ -50,11 +50,13 @@ GFaSeqGet::GFaSeqGet(const char* faname, uint seqlen, off_t fseqofs, int l_len, 
 }
 
 GFaSeqGet::GFaSeqGet(FILE* f, off_t fofs, bool validate) {
- if (f==NULL) GError("Error (GFaSeqGet) : null file handle!\n");
- seq_len=0;
- fh=f;
- initialParse(fofs, validate);
- lastsub=new GSubSeq();
+  fname=NULL;
+  fseqstart=0;
+  if (f==NULL) GError("Error (GFaSeqGet) : null file handle!\n");
+  seq_len=0;
+  fh=f;
+  initialParse(fofs, validate);
+  lastsub=new GSubSeq();
 }
 
 void GFaSeqGet::initialParse(off_t fofs, bool checkall) {
@@ -228,7 +230,7 @@ const char* GFaSeqGet::subseq(uint cstart, int& clen) {
 }
 
 char* GFaSeqGet::copyRange(uint cstart, uint cend, bool revCmpl, bool upCase) {
-  if (cstart>cend) { swap(cstart, cend); }
+  if (cstart>cend) { Gswap(cstart, cend); }
   int clen=cend-cstart+1;
   const char* gs=subseq(cstart, clen);
   if (gs==NULL) return NULL;
@@ -256,7 +258,7 @@ const char* GFaSeqGet::loadsubseq(uint cstart, int& clen) {
   int lineofs = seqofs % line_len;
   off_t fstart=fseqstart + (startlno*line_blen);
   fstart+=lineofs;
-  
+
   fseeko(fh, fstart, SEEK_SET);
   int toread=clen;
   int maxlen=(seq_len>0)? seq_len-cstart+1 : MAX_FASUBSEQ ;
@@ -310,7 +312,7 @@ const char* GFaSeqGet::loadsubseq(uint cstart, int& clen) {
     }
   //lastsub->sqlen+=sublen;
   clen=sublen;
-  
+
   return (const char*)seqp;
   }
 

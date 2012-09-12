@@ -2,9 +2,10 @@ m4_include([ax_boost_base.m4])
 m4_include([ax_boost_thread.m4])
 m4_include([ax_bam.m4])
 m4_include([ax_check_zlib.m4])
+m4_include([ax_check_eigen.m4])
 
 define([svnversion], esyscmd([sh -c "svnversion|tr -d '\n'"]))dnl
-AC_INIT([cufflinks], [1.3.0], [cole@cs.umd.edu])
+AC_INIT([cufflinks], [2.0.2], [cole@cs.umd.edu])
 AC_DEFINE(SVN_REVISION, "svnversion", [SVN Revision])
 
 AC_CONFIG_SRCDIR([config.h.in])
@@ -30,11 +31,11 @@ AC_PROG_MAKE_SET
 AC_PROG_RANLIB
 AC_PROG_INSTALL
 AM_PATH_PYTHON([2.4])
-AX_BOOST_BASE([1.38.0])
+AX_BOOST_BASE([1.47.0])
 AX_BAM
 AX_BOOST_THREAD
 AX_CHECK_ZLIB()
-
+AX_EIGEN
 # Checks for header files.
 AC_CHECK_HEADERS([stdlib.h string.h unistd.h])
 
@@ -45,6 +46,7 @@ AC_TYPE_PID_T
 AC_TYPE_SIZE_T
 AC_CHECK_TYPES([ptrdiff_t])
 
+
 # Checks for library functions.
 #AC_FUNC_FORK
 #AC_CHECK_FUNCS([floor memmove pow regcomp sqrt strchr strcspn strspn strstr])
@@ -54,7 +56,7 @@ AC_CANONICAL_HOST
 
 # set CFLAGS and CXXFLAGS
 user_CFLAGS=${CFLAGS}
-generic_CFLAGS="-Wall -Wno-strict-aliasing -g -gdwarf-2 -Wuninitialized"
+generic_CFLAGS="-Wall -Wno-strict-aliasing -g -gdwarf-2 -Wunused -Wuninitialized"
 ext_CFLAGS=""
 debug_CFLAGS=""
 #echo "${host_cpu}-${host_os}"
@@ -100,8 +102,9 @@ AC_ARG_ENABLE(profiling,      [  --enable-profiling        enable profiling with
 	  
 CFLAGS="${generic_CFLAGS} ${ext_CFLAGS} ${user_CFLAGS} ${debug_CFLAGS} ${OPENMP_CFLAGS}"
 CXXFLAGS="$CFLAGS"
-CXXFLAGS="$CXXFLAGS $BOOST_CPPFLAGS $BAM_CPPFLAGS"
-LDFLAGS="$ext_LDFLAGS"
+CXXFLAGS="${CXXFLAGS} ${BOOST_CPPFLAGS} ${BAM_CPPFLAGS} ${EIGEN_CPPFLAGS}"
+user_LDFLAGS="$LDFLAGS"
+LDFLAGS="${ext_LDFLAGS} ${user_LDFLAGS}"
 
 # Checks for structures/functions that can be used to determine system memory
 AC_CHECK_MEMBERS([struct sysinfo.totalram], [], [], [#include <sys/sysinfo.h>])

@@ -99,6 +99,15 @@ extern int num_bootstrap_samples;
 extern double bootstrap_fraction;
 extern double bootstrap_delta_gap;
 extern int max_frags_per_bundle;
+//extern bool analytic_diff;
+extern bool no_differential;
+extern double num_frag_count_draws;
+extern double num_frag_assignments;
+extern double max_multiread_fraction;
+extern double max_frag_multihits;
+extern int min_reps_for_js_test;
+extern bool no_effective_length_correction;
+extern bool no_length_correction;
 
 // SECRET OPTIONS: 
 // These options are just for instrumentation and benchmarking code
@@ -119,6 +128,11 @@ extern boost::thread_specific_ptr<std::string> bundle_label; // for consistent, 
 extern boost::shared_ptr<std::string> bundle_label;
 #endif
 
+// Global switch to mark when we're in the middle of learning bias.
+extern bool bias_run;
+
+// Hold the command line string used to run the program
+extern std::string cmd_str;
 
 bool gaurd_assembly();
 
@@ -204,6 +218,13 @@ enum Platform
     SOLID
 };
 
+enum FLDSource
+{
+    LEARNED,
+    USER,
+    DEFAULT
+};
+
 class EmpDist
 {
 	//Vectors only valid between min and max!
@@ -214,10 +235,11 @@ class EmpDist
     double _std_dev;
 	int _min;
 	int _max;
-	
+	FLDSource _source;
+    
 public:
-	EmpDist(std::vector<double>& pdf, std::vector<double>& cdf, int mode, double mean, double std_dev, int min, int max)
-	: _pdf(pdf), _cdf(cdf), _mode(mode), _mean(mean), _std_dev(std_dev), _min(min), _max(max) {}
+	EmpDist(std::vector<double>& pdf, std::vector<double>& cdf, int mode, double mean, double std_dev, int min, int max, FLDSource source)
+	: _pdf(pdf), _cdf(cdf), _mode(mode), _mean(mean), _std_dev(std_dev), _min(min), _max(max), _source(source) {}
 	
 	void pdf(std::vector<double>& pdf)	{ _pdf = pdf; }
 	double pdf(int l) const
@@ -266,6 +288,9 @@ public:
     
     void std_dev(double std_dev)				{ _std_dev = std_dev;  }
 	double std_dev() const					{ return _std_dev; }
+    
+    FLDSource source() const        { return _source; }
+    void source(FLDSource source)   { _source = source; } 
 };
 
 class BiasLearner;
@@ -312,18 +337,24 @@ public:
 	boost::shared_ptr<BiasLearner const> bias_learner() const { return _bias_learner; }
     void bias_learner(boost::shared_ptr<BiasLearner const> bl)  { _bias_learner = bl; } 
 	
-    void mass_scale_factor(double sf) { _mass_scaling_factor = sf; }
-    double mass_scale_factor() const  { return _mass_scaling_factor; }
+    // The internal scaling factor relates replicates to each other, so
+    // that replicates with larger library sizes don't bias the isoform
+    // deconvolution over smaller libraries
+    void internal_scale_factor(double sf) { _internal_scale_factor = sf; }
+    double internal_scale_factor() const  { return _internal_scale_factor; }
+    
+    void external_scale_factor(double sf) { _external_scale_factor = sf; }
+    double external_scale_factor() const  { return _external_scale_factor; }
     
     void complete_fragments(bool c)  { _complete_fragments = c; }
     bool complete_fragments() const { return _complete_fragments; }
     
-    double scale_mass(double unscaled_mass) const 
+    double internally_scale_mass(double unscaled_mass) const 
     { 
-        if (_mass_scaling_factor == 0)
+        if (_internal_scale_factor == 0)
             return unscaled_mass;
         
-        return unscaled_mass * (1.0 / _mass_scaling_factor);
+        return unscaled_mass * (1.0 / _internal_scale_factor);
     }
     
     boost::shared_ptr<const MassDispersionModel> mass_dispersion_model() const 
@@ -339,9 +370,24 @@ public:
     const std::vector<LocusCount>& common_scale_counts() { return _common_scale_counts; }
     void common_scale_counts(const std::vector<LocusCount>& counts) { _common_scale_counts = counts; }
     
+    const std::vector<LocusCount>& raw_counts() { return _raw_counts; }
+    void raw_counts(const std::vector<LocusCount>& counts) { _raw_counts = counts; }
+    
 	boost::shared_ptr<MultiReadTable> multi_read_table() const {return _multi_read_table; }	
 	void multi_read_table(boost::shared_ptr<MultiReadTable> mrt) { _multi_read_table = mrt;	}
 	
+//    const string& description() const { return _description; }
+//    void description(const string& d) { _description = d; }
+    
+    const std::string& condition_name() const { return _condition_name; }
+    void condition_name(const std::string& cd) { _condition_name = cd; }
+    
+    const std::string& file_path() const { return _file_path; }
+    void file_path(const std::string& fp) { _file_path = fp; }
+    
+    int replicate_num() const { return _replicate_num; }
+    void replicate_num(int rn) { _replicate_num = rn; }
+    
 private:
     
     Strandedness _strandedness;
@@ -354,11 +400,17 @@ private:
 	boost::shared_ptr<BiasLearner const> _bias_learner;
 	boost::shared_ptr<MultiReadTable> _multi_read_table;
     
-    double _mass_scaling_factor;
+    double _internal_scale_factor;
+    double _external_scale_factor;
     boost::shared_ptr<const MassDispersionModel> _mass_dispersion_model;
     std::vector<LocusCount> _common_scale_counts;
+    std::vector<LocusCount> _raw_counts;
     
     bool _complete_fragments;
+    
+    std::string _condition_name;
+    std::string _file_path;
+    int _replicate_num;
 };
 
 extern std::map<std::string, ReadGroupProperties> library_type_table;
@@ -433,4 +485,20 @@ std::string cat_strings(const T& container, const char* delimiter=",")
 #define OPT_TRIM_READ_LENGTH        297
 #define OPT_MAX_DELTA_GAP           298
 #define OPT_MLE_MIN_ACC             299
+//#define OPT_ANALYTIC_DIFF           300
+#define OPT_NO_DIFF                 301
+#define OPT_GEOMETRIC_NORM          302
+#define OPT_RAW_MAPPED_NORM         303
+#define OPT_NUM_FRAG_COUNT_DRAWS    304
+#define OPT_NUM_FRAG_ASSIGN_DRAWS   305
+#define OPT_MAX_MULTIREAD_FRACTION  306
+#define OPT_LOCUS_COUNT_DISPERSION  307
+#define OPT_MIN_OUTLIER_P           308
+#define OPT_FRAG_MAX_MULTIHITS      309
+#define OPT_MIN_REPS_FOR_JS_TEST    310
+#define OPT_OLAP_RADIUS             311
+#define OPT_NO_LENGTH_CORRECTION    312
+#define OPT_NO_EFFECTIVE_LENGTH_CORRECTION    313
+
+
 #endif

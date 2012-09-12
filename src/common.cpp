@@ -65,7 +65,7 @@ bool corr_bias = false;
 bool corr_multi = false;
 bool use_quartile_norm = false;
 bool poisson_dispersion = false;
-BiasMode bias_mode = POS_VLMM;
+BiasMode bias_mode = VLMM;
 int def_frag_len_mean = 200;
 int def_frag_len_std_dev = 80;
 int def_max_frag_len = 800;
@@ -112,6 +112,15 @@ int num_bootstrap_samples = 20;
 double bootstrap_fraction = 1.0;
 double bootstrap_delta_gap = 0.001;
 int max_frags_per_bundle = 1000000;
+//bool analytic_diff = false;
+bool no_differential = false;
+double num_frag_count_draws = 1000;
+double num_frag_assignments = 1;
+double max_multiread_fraction = 0.75;
+double max_frag_multihits = 10000000;
+int min_reps_for_js_test = 3;
+bool no_effective_length_correction = false;
+bool no_length_correction = false;
 
 // SECRET OPTIONS: 
 // These options are just for instrumentation and benchmarking code
@@ -121,8 +130,13 @@ bool no_read_pairs = false;
 int trim_read_length = -1;
 double mle_accuracy = 1e-6;
 
+
+
 // END SECRET OPTIONS
 
+bool bias_run = false;
+
+std::string cmd_str;
 
 map<string, ReadGroupProperties> library_type_table;
 const ReadGroupProperties* global_read_properties = NULL;
@@ -369,8 +383,9 @@ ReadGroupProperties::ReadGroupProperties() :
     _platform(UNKNOWN_PLATFORM),
     _total_map_mass(0.0),
     _norm_map_mass(0.0),
-    _mass_scaling_factor(1.0),
+    _internal_scale_factor(1.0),
+    _external_scale_factor(1.0),
     _complete_fragments(false)
 {
-    _mass_dispersion_model = boost::shared_ptr<MassDispersionModel const>(new PoissonDispersionModel);
+    _mass_dispersion_model = boost::shared_ptr<MassDispersionModel const>(new PoissonDispersionModel(""));
 } 

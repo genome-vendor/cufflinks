@@ -16,10 +16,12 @@ class MassDispersionModel
 {
 public:
     MassDispersionModel() {}
-    MassDispersionModel(const std::vector<double>& scaled_mass_means, 
+    MassDispersionModel(const std::string& name,
+                        const std::vector<double>& scaled_mass_means, 
                         const std::vector<double>& scaled_raw_variances,
                         const std::vector<double>& scaled_mass_variances);
 
+    virtual const std::string& name() const { return _name; }
     
     virtual double scale_mass_variance(double scaled_mass) const;
     
@@ -45,6 +47,7 @@ public:
     }
     
 private:
+    std::string         _name;
     std::vector<double> _scaled_mass_means;
     std::vector<double> _scaled_raw_variances;
     std::vector<double> _scaled_mass_variances;
@@ -54,8 +57,12 @@ private:
 
 class PoissonDispersionModel : public MassDispersionModel
 {
-public:
+    std::string         _name;
     
+public:
+    PoissonDispersionModel(const std::string& name) : _name(name) {}
+        
+        virtual const std::string& name() const { return _name; }
     virtual double scale_mass_variance(double scaled_mass) const 
     { 
         return scaled_mass; 
@@ -71,6 +78,9 @@ struct LocusCountList
     int num_transcripts;
 };
 
+void transform_counts_to_common_scale(const vector<double>& scale_factors,
+                                      vector<LocusCountList>& sample_count_table);
+
 void calc_scaling_factors(const std::vector<LocusCountList>& sample_count_table,
                           std::vector<double>& scale_factors);
 
@@ -78,7 +88,8 @@ void calc_scaling_factors(const std::vector<LocusCountList>& sample_count_table,
 boost::shared_ptr<MassDispersionModel const> 
 fit_dispersion_model(const string& condition_name,
                      const std::vector<double>& scale_factors,
-                     const std::vector<LocusCountList>& sample_count_table);
+                     const std::vector<LocusCountList>& sample_count_table,
+                     bool exclude_zero_samples);
 
 // This factory merges bundles in a requested locus from several replicates
 class ReplicatedBundleFactory
@@ -180,7 +191,7 @@ public:
             BadIntronTable bad_introns;
             
             vector<LocusCount> count_table;
-            inspect_map(*fac, NULL, count_table, false);
+            inspect_map(*fac, NULL, count_table, false, false);
             
             shared_ptr<ReadGroupProperties> rg_props = fac->read_group_properties();
             
@@ -205,6 +216,9 @@ public:
                     sample_count_table[i].counts[fac_idx] = raw_count;
                 }
             }
+            
+            rg_props->raw_counts(count_table);
+            
             sample_masses.push_back(rg_props->total_map_mass());
 			min_len = min(min_len, rg_props->frag_len_dist()->min());
 			max_len = max(max_len, rg_props->frag_len_dist()->max());
@@ -218,33 +232,62 @@ public:
         {
             shared_ptr<ReadGroupProperties> rg_props = _factories[i]->read_group_properties();
             assert (scale_factors[i] != 0);
-            rg_props->mass_scale_factor(scale_factors[i]);
+            rg_props->internal_scale_factor(scale_factors[i]);
         }
         
-        // Transform raw counts to the common scale
-        for (size_t i = 0; i < sample_count_table.size(); ++i)
+        transform_counts_to_common_scale(scale_factors, sample_count_table);
+        for (size_t fac_idx = 0; fac_idx < _factories.size(); ++fac_idx)
         {
-            LocusCountList& p = sample_count_table[i];
-            for (size_t j = 0; j < p.counts.size(); ++j)
-            {
-                assert (scale_factors.size() > j);
-                p.counts[j] *= (1.0 / scale_factors[j]);
-            }
-        }
-        
-        for (size_t i = 0; i < _factories.size(); ++i)
-        {
-            shared_ptr<ReadGroupProperties> rg_props = _factories[i]->read_group_properties();
-            vector<LocusCount> scaled_counts;
+            shared_ptr<ReadGroupProperties> rg_props = _factories[fac_idx]->read_group_properties();
+            assert (scale_factors[fac_idx] != 0);
+            vector<LocusCount> common_scaled_counts;
             for (size_t j = 0; j < sample_count_table.size(); ++j)
             {
-                scaled_counts.push_back(LocusCount(sample_count_table[j].locus_desc, sample_count_table[j].counts[i], sample_count_table[j].num_transcripts));
+                common_scaled_counts.push_back(LocusCount(sample_count_table[j].locus_desc, sample_count_table[j].counts[fac_idx], sample_count_table[j].num_transcripts));
             }
-            rg_props->common_scale_counts(scaled_counts);
+            rg_props->common_scale_counts(common_scaled_counts);
+        }
+        fit_dispersion_model();
+    }
+
+    void fit_dispersion_model()
+    {
+        vector<LocusCountList> sample_count_table;
+        vector<double> scale_factors;
+        
+        for (size_t fac_idx = 0; fac_idx < _factories.size(); ++fac_idx)
+        {
+            shared_ptr<BundleFactory> fac = _factories[fac_idx];        
+            
+            shared_ptr<ReadGroupProperties> rg_props = fac->read_group_properties();
+            const vector<LocusCount>& count_table = rg_props->common_scale_counts();
+            
+            for (size_t i = 0; i < count_table.size(); ++i)
+            {
+                const LocusCount& c = count_table[i];
+                double common_scale_count = c.count;
+                
+                if (i >= sample_count_table.size())
+                {
+                    LocusCountList locus_count(c.locus_desc, _factories.size(), c.num_transcripts); 
+                    sample_count_table.push_back(locus_count);
+                    sample_count_table.back().counts[0] = common_scale_count;
+                }
+                else
+                {
+                    if (sample_count_table[i].locus_desc != c.locus_desc)
+                    {
+                        fprintf (stderr, "Error: bundle boundaries don't match across replicates!\n");
+                        exit(1);
+                    }
+                    sample_count_table[i].counts[fac_idx] = common_scale_count;
+                }
+            }
+            scale_factors.push_back(rg_props->internal_scale_factor());
         }
         
         shared_ptr<MassDispersionModel const> disperser;
-        disperser = fit_dispersion_model(_condition_name,scale_factors, sample_count_table);
+        disperser = ::fit_dispersion_model(_condition_name,scale_factors, sample_count_table, false);
         
         foreach (shared_ptr<BundleFactory> fac, _factories)
         {
@@ -252,6 +295,7 @@ public:
             rg_props->mass_dispersion_model(disperser);
         }
     }
+    
     
     // This function NEEDS to deep copy the ref_mRNAs, otherwise cuffdiff'd
     // samples will clobber each other

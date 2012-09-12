@@ -21,6 +21,9 @@
    */
 #undef HAVE_DECL_SYSCTL
 
+/* define if the EIGEN library is available */
+#undef HAVE_EIGEN
+
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 

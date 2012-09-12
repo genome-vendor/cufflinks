@@ -1,6 +1,5 @@
 #ifndef GFASEQGET_H
 #define GFASEQGET_H
-
 #include "GList.hh"
 
 #define MAX_FASUBSEQ 0x20000000
@@ -81,7 +80,7 @@ class GFaSeqGet {
   const char* subseq(uint cstart, int& clen);
   const char* getRange(uint cstart=1, uint cend=0) {
       if (cend==0) cend=(seq_len>0)?seq_len : MAX_FASUBSEQ;
-      if (cstart>cend) { swap(cstart, cend); }
+      if (cstart>cend) { Gswap(cstart, cend); }
       int clen=cend-cstart+1;
       //int rdlen=clen;
       return subseq(cstart, clen);

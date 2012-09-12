@@ -15,7 +15,7 @@ using namespace std;
 using namespace boost;
 
 
-double entropy(const ublas::vector<double>& p)
+double entropy(const Eigen::VectorXd& p)
 {
 	double e = 0;  
 	for (size_t i = 0; i < p.size(); ++i)
@@ -26,24 +26,14 @@ double entropy(const ublas::vector<double>& p)
             e -= (P * log(P));
         }
 	}
+    if (e < 0)
+        e = 0;
 	return e;
 }
 
-double jensen_shannon_distance(std::vector<ublas::vector<double> >& sample_kappas)
+double jensen_shannon_distance(std::vector<Eigen::VectorXd>& sample_kappas)
 {
 	assert (sample_kappas.size() > 1);
-	
-	for (size_t i = 0; i < sample_kappas.size(); ++i)
-	{
-		//cerr << sample_kappas[i] << endl;
-		double kappa_sum = accumulate(sample_kappas[i].begin(), 
-									  sample_kappas[i].end(), 0.0);
-		if (abs(kappa_sum - 1.0) > 1e-10)
-		{
-			//cerr << kappa_sum << " " << sample_kappas[i] << endl;
-		}
-		assert (abs(kappa_sum - 1.0) < 1e-10);
-	}
 	
 	size_t kappa_length = 0;
 	for (size_t i = 1; i < sample_kappas.size(); ++i)
@@ -52,7 +42,7 @@ double jensen_shannon_distance(std::vector<ublas::vector<double> >& sample_kappa
 		kappa_length = sample_kappas[i].size();
 	}
 	
-	ublas::vector<double> avg_kappas = ublas::zero_vector<double>(kappa_length);
+    Eigen::VectorXd avg_kappas = Eigen::VectorXd::Zero(kappa_length);
 	for (size_t i = 0; i < sample_kappas.size(); ++i)
 	{
 		//cout << "kappa " << i<< " "<< sample_kappas[i] << endl;
@@ -72,100 +62,12 @@ double jensen_shannon_distance(std::vector<ublas::vector<double> >& sample_kappa
 	double entropy_avg = entropy(avg_kappas);
 	
 	double js = entropy_avg - avg_entropy;
-
+    if (js < 0) // can happen due to underflow or rounding errors.
+        return 0;
 	return sqrt(js);
 }
 
-//void alt_jensen_shannon_gradient(vector<ublas::vector<double> >& sample_kappas,
-//                                 double js,
-//                                 ublas::vector<double>& gradient)
-//{
-//	assert (sample_kappas.size() > 1);
-//	size_t kappa_length = sample_kappas.front().size();
-//	for (size_t i = 1; i < sample_kappas.size(); ++i)
-//	{
-//		assert (sample_kappas[i].size() == sample_kappas[i-1].size());
-//		kappa_length = sample_kappas[i].size();
-//	}
-//	
-//	if (kappa_length == 0)
-//		return;
-//	
-//	gradient = ublas::zero_vector<double>(sample_kappas.size() * kappa_length);
-//	for (size_t i = 0; i < sample_kappas.size(); ++i)
-//	{
-//		for (size_t k = 0; k < kappa_length; ++k)
-//		{
-//			gradient(i*kappa_length + k) = sample_kappas[i](k);
-//		}
-//	}
-//	
-//	//cout << "t1: " << gradient<< endl;
-//	
-//	ublas::vector<double> p_bar = ublas::zero_vector<double>(kappa_length);
-//	for (size_t i = 0; i < sample_kappas.size(); ++i)
-//	{
-//		p_bar += sample_kappas[i];
-//	}
-//	p_bar /= sample_kappas.size();
-//	
-//	
-//	//cout << "t2 " << denoms << endl;
-//	
-//	for (size_t i = 0; i < sample_kappas.size(); ++i)
-//	{
-//		for (size_t k = 0; k < kappa_length; ++k)
-//		{
-//			if (p_bar(k) == 0.0 || gradient(i*kappa_length + k) == 0.0)
-//			{
-//				gradient(i*kappa_length + k) = 0.0;
-//			}
-//			else
-//			{
-//#ifdef DEBUG
-//				ublas::vector<double>& grad_tmp = gradient;
-//#endif
-////                double alt_grad = 0.0;
-////                double m = 2.0;
-////                alt_grad = js / (2.0 * m);
-////                double A = log(gradient(i*kappa_length + k)) + (1.0 / gradient(i*kappa_length + k));
-////                double B = log(p_bar[k]) + (1.0 / p_bar[k]);
-////                alt_grad *= (A - B);
-//                
-//                double alt_grad = 0.0;
-//                
-//                alt_grad /= p_bar(k);
-//				alt_grad = log(gradient(i*kappa_length + k));
-//				alt_grad /= sample_kappas.size(); // m in paper notation
-//				alt_grad *= (1.0/(2.0 * js)); // This is supposed to use the square root of the distance (it's not a typo)
-//				
-//
-//                
-//				gradient(i*kappa_length + k) /= p_bar(k);
-//				gradient(i*kappa_length + k) = log(gradient(i*kappa_length + k));
-//				gradient(i*kappa_length + k) /= sample_kappas.size(); // m in paper notation
-//				gradient(i*kappa_length + k) *= (1.0/(2.0 * js)); // This is supposed to use the square root of the distance (it's not a typo)
-//				
-//                double curr_grad = gradient(i*kappa_length + k);
-//                
-//                gradient(i*kappa_length + k) = alt_grad;
-//                //fprintf(stderr, "Curr gradient: %lg, alternate gradient %lg\n", curr_grad, alt_grad);
-//#ifdef DEBUG
-//				if(isinf(gradient(i*kappa_length + k)))
-//				{
-//					cerr << grad_tmp << endl;
-//					cerr << sample_kappas[i] << endl;
-//					assert (false);
-//				}
-//#endif
-//				
-//			}
-//		}
-//	}
-//}
-
-
-void jensen_shannon_gradient(vector<ublas::vector<double> >& sample_kappas,
+void jensen_shannon_gradient(vector<Eigen::VectorXd>& sample_kappas,
 							 double js,
 							 ublas::vector<double>& gradient)
 {
@@ -192,10 +94,13 @@ void jensen_shannon_gradient(vector<ublas::vector<double> >& sample_kappas,
 	
 	//cout << "t1: " << gradient<< endl;
 	
-	ublas::vector<double> p_bar = ublas::zero_vector<double>(kappa_length);
+    ublas::vector<double> p_bar = ublas::zero_vector<double>(kappa_length);
 	for (size_t i = 0; i < sample_kappas.size(); ++i)
 	{
-		p_bar += sample_kappas[i];
+		for (size_t j = 0; j < sample_kappas[i].size(); ++j)
+        {
+            p_bar[j] += sample_kappas[i](j);   
+        }
 	}
 	p_bar /= sample_kappas.size();
 	
@@ -212,9 +117,6 @@ void jensen_shannon_gradient(vector<ublas::vector<double> >& sample_kappas,
 			}
 			else
 			{
-#ifdef DEBUG
-				ublas::vector<double>& grad_tmp = gradient;
-#endif
                 double alt_grad = 0.0;
                 double m = 2.0;
                 alt_grad = js / (2.0 * m);
@@ -231,15 +133,7 @@ void jensen_shannon_gradient(vector<ublas::vector<double> >& sample_kappas,
                 
                 assert (!isinf(curr_grad) && !isnan(curr_grad));
                 //fprintf(stderr, "Curr gradient: %lg, alternate gradient %lg\n", curr_grad, alt_grad);
-#if 0
-				if(isinf(gradient(i*kappa_length + k)))
-				{
-					cerr << grad_tmp << endl;
-					cerr << sample_kappas[i] << endl;
-					assert (false);
-				}
-#endif
-				
+            
 			}
 		}
 	}
