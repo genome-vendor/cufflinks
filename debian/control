@@ -1,12 +1,12 @@
 Source: cufflinks2.1.1
 Section: science
 Priority: optional
-Build-Depends: debhelper (>= 7), autoconf, libboost-dev (>= 1.38), libbam-dev, zlib1g-dev, libboost-thread1.40-dev
+Build-Depends: debhelper (>= 7), autoconf, libboost1.51-tgi-dev (>= 1.51), libeigen3-dev, libbam-dev, zlib1g-dev, libboost-thread1.40-dev
 Maintainer: The Genome Institute <gmt@genome.wustl.edu>
 Homepage: http://cufflinks.cbcb.umd.edu/
 
 Package: cufflinks2.1.1
 Architecture: amd64
-Depends: libboost-dev, libbam-dev, zlib1g, libboost-thread1.40
+Depends: libbam-dev, zlib1g
 Description: Cufflinks assembles transcripts, estimates their abundances, and tests for differential expression and regulation in RNA-Seq samples. It accepts aligned RNA-Seq reads and assembles the alignments into a parsimonious set of transcripts. Cufflinks then estimates the relative abundances of these transcripts based on how many reads support each one, taking into account biases in library preparation protocols. 
 

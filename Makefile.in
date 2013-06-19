@@ -43,8 +43,10 @@ DIST_COMMON = README $(am__configure_deps) $(srcdir)/Makefile.am \
 subdir = .
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/ax_boost_base.m4 \
-	$(top_srcdir)/ax_boost_thread.m4 $(top_srcdir)/ax_bam.m4 \
-	$(top_srcdir)/ax_check_zlib.m4 $(top_srcdir)/configure.ac
+	$(top_srcdir)/ax_boost_thread.m4 \
+	$(top_srcdir)/ax_boost_system.m4 $(top_srcdir)/ax_bam.m4 \
+	$(top_srcdir)/ax_check_zlib.m4 $(top_srcdir)/ax_check_eigen.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 am__CONFIG_DISTCLEAN_FILES = config.status config.cache config.log \
@@ -86,6 +88,7 @@ BAM_LDFLAGS = @BAM_LDFLAGS@
 BAM_LIB = @BAM_LIB@
 BOOST_CPPFLAGS = @BOOST_CPPFLAGS@
 BOOST_LDFLAGS = @BOOST_LDFLAGS@
+BOOST_SYSTEM_LIB = @BOOST_SYSTEM_LIB@
 BOOST_THREAD_LIB = @BOOST_THREAD_LIB@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
@@ -102,6 +105,7 @@ ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
 EGREP = @EGREP@
+EIGEN_CPPFLAGS = @EIGEN_CPPFLAGS@
 EXEEXT = @EXEEXT@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@

@@ -16,6 +16,7 @@
 
 #include <stdint.h>
 #include <vector>
+#include <iostream>
 #include <boost/numeric/ublas/matrix.hpp>
 #include <boost/numeric/ublas/vector.hpp>
 
@@ -33,6 +34,8 @@
 #include <boost/random/uniform_int.hpp>
 #include <boost/random/variate_generator.hpp>
 #include <boost/math/constants/constants.hpp>
+
+#include <Eigen/Dense>
 
 // Boost Cholesky factorizations in the spirit of lu.hpp
 // Written by Robbie Vogt, found at: 
@@ -62,6 +65,17 @@ namespace boost { namespace numeric { namespace ublas {
 				
 				if (i == j) {
 					if (elem <= 0.0) {
+//                        std::cerr << "intermediate: " << std::endl;
+//                        for (unsigned k = 0; k < m.size1 (); ++k) 
+//                        {
+//                            ublas::matrix_row<ublas::matrix<double> > mr (m, k);
+//                            std::cerr << k << " : " << mr << std::endl;
+//                        }
+//                        std::cerr << "======" << std::endl;
+//                        std::cerr << i << " , " << j << " = " << m(i,j) << std::endl; 
+//                        std::cerr << project(mri,range(0,i)) << std::endl;
+//                        std::cerr << project(mrj,range(0,i)) << std::endl;
+//                        std::cerr << inner_prod(project(mri,range(0,i)), project(mrj,range(0,i))) << std::endl;
 						// matrix after rounding errors is not positive definite
 						return elem;
 					}
@@ -286,7 +300,7 @@ float_type log_space_add(float_type log_p, float_type log_q)
 }
 
 void generate_importance_samples(multinormal_generator<double>& generator,
-                                 std::vector<boost::numeric::ublas::vector<double> >& samples, 
+                                 std::vector<Eigen::VectorXd>& samples, 
                                  int num_samples,
                                  bool no_zeros = true);
 

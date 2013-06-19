@@ -997,10 +997,10 @@ public:
 		return base_mass;
 	}
     
-	double common_scale_mass() const
+	double internal_scale_mass() const
 	{
        	double m = mass();
-        m *= _rg_props->mass_scale_factor();
+        m *= 1.0 / _rg_props->internal_scale_factor();
         
         return m;
 	}
@@ -1044,6 +1044,8 @@ bool has_no_collapse_mass(const MateHit& hit);
 // Assumes hits are sorted by mate_hit_lt
 void collapse_hits(const vector<MateHit>& hits,
 				   vector<MateHit>& non_redundant);
+
+void normalize_counts(std::vector<boost::shared_ptr<ReadGroupProperties> > & all_read_groups);
 
 
 

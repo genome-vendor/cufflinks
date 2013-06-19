@@ -5,21 +5,22 @@
 #ifndef GHash_HH
 #define GHash_HH
 #include "GBase.h"
+
 /**
 * This class maintains a fast-access hash table of entities
 * indexed by a character string (essentially, maps strings to pointers)
 */
 
-typedef struct {
-     char*   key;              // Key string
-     bool    keyalloc;         //shared key flag (to not free the key chars)
-     int     hash;             // Hash value of key
-     pointer data;              // Data
-     bool    mark;             // Entry is marked
-     } GHashEntry;
 
-template <class OBJ> class  GHash {
+template <class OBJ> class GHash {
  protected:
+	struct GHashEntry {
+	     char*   key;              // Key string
+	     bool    keyalloc;         //shared key flag (to not free the key chars)
+	     int     hash;             // Hash value of key
+	     pointer data;              // Data
+	     bool    mark;             // Entry is marked
+	     };
   GHashEntry* hash;         // Hash
   int         fCapacity;     // table size
   int         fCount;        // number of valid entries
@@ -52,7 +53,6 @@ protected:
 public:
   static void DefaultFreeProc(pointer item) {
       delete (OBJ*)item;
-      item=NULL;
       }
 public:
   GHash(GFreeProc* freeProc); // constructs of an empty hash
@@ -86,8 +86,18 @@ public:
   OBJ* NextData(char*& nextkey); //returns next valid hash[].data
                                 //or NULL if no more
                                 //nextkey is SET to the corresponding key
-  GHashEntry* NextEntry(); //returns a pointer to a GHashEntry
-
+  GHashEntry* NextEntry() { //returns a pointer to a GHashEntry
+  	 register int pos=fCurrentEntry;
+  	 while (pos<fCapacity && hash[pos].hash<0) pos++;
+  	 if (pos==fCapacity) {
+  	                 fCurrentEntry=fCapacity;
+  	                 return NULL;
+  	                 }
+  	              else {
+  	                 fCurrentEntry=pos+1;
+  	                 return &hash[pos];
+  	                 }
+  }
   /// Clear all entries
   void Clear();
 
@@ -132,7 +142,9 @@ public:
 // Construct empty hash
 template <class OBJ> GHash<OBJ>::GHash(GFreeProc* freeProc) {
   GMALLOC(hash, sizeof(GHashEntry)*DEF_HASH_SIZE);
+  fCurrentEntry=-1;
   fFreeProc=freeProc;
+  lastkeyptr=NULL;
   for (uint i=0; i<DEF_HASH_SIZE; i++)
          hash[i].hash=-1; //this will be an indicator for 'empty' entries
   fCapacity=DEF_HASH_SIZE;
@@ -141,6 +153,8 @@ template <class OBJ> GHash<OBJ>::GHash(GFreeProc* freeProc) {
 
 template <class OBJ> GHash<OBJ>::GHash(bool doFree) {
   GMALLOC(hash, sizeof(GHashEntry)*DEF_HASH_SIZE);
+  fCurrentEntry=-1;
+  lastkeyptr=NULL;
   fFreeProc = (doFree)?&DefaultFreeProc : NULL;
   for (uint i=0; i<DEF_HASH_SIZE; i++)
          hash[i].hash=-1; //this will be an indicator for 'empty' entries
@@ -437,19 +451,6 @@ template <class OBJ> OBJ* GHash<OBJ>::NextData(char* &nextkey) {
                  return (OBJ*)hash[pos].data;
                  }
 
-}
-
-template <class OBJ> GHashEntry* GHash<OBJ>::NextEntry() {
- register int pos=fCurrentEntry;
- while (pos<fCapacity && hash[pos].hash<0) pos++;
- if (pos==fCapacity) {
-                 fCurrentEntry=fCapacity;
-                 return NULL;
-                 }
-              else {
-                 fCurrentEntry=pos+1;
-                 return &hash[pos];
-                 }
 }
 
 

@@ -188,7 +188,7 @@ bool hits_eq_non_multi(const MateHit& lhs, const MateHit& rhs)
 // and won't return true for hits from different read groups (e.g. replicate samples)
 bool hits_eq_non_multi_non_replicate(const MateHit& lhs, const MateHit& rhs)
 {
-	if ((lhs.is_multi() || rhs.is_multi() || lhs.read_group_props() != rhs.read_group_props()) && lhs.insert_id() != rhs.insert_id())
+	if (((lhs.is_multi() || rhs.is_multi()) && lhs.insert_id() != rhs.insert_id()) || lhs.read_group_props() != rhs.read_group_props())
 		return false;
 	return hits_equals(lhs, rhs);
 }
@@ -233,7 +233,7 @@ void collapse_hits(const vector<MateHit>& hits,
 	non_redundant.erase(new_end, non_redundant.end());
     non_redundant.resize(non_redundant.size());
 	
-	foreach(MateHit& hit, non_redundant)
+	BOOST_FOREACH(MateHit& hit, non_redundant)
 		hit.collapse_mass(0);
 	
 	size_t curr_aln = 0;
@@ -242,7 +242,7 @@ void collapse_hits(const vector<MateHit>& hits,
 	{
 		if (hits_eq_non_multi_non_replicate(non_redundant[curr_unique_aln], hits[curr_aln]) || hits_eq_non_multi_non_replicate(non_redundant[++curr_unique_aln], hits[curr_aln]))
 		{
-            double more_mass = hits[curr_aln].common_scale_mass();
+            double more_mass = hits[curr_aln].internal_scale_mass();
 			//assert(non_redundant[curr_unique_aln].collapse_mass() == 0 || !non_redundant[curr_unique_aln].is_multi());
 			non_redundant[curr_unique_aln].incr_collapse_mass(more_mass);
 		}
@@ -252,7 +252,7 @@ void collapse_hits(const vector<MateHit>& hits,
 		++curr_aln;
 	}
 	
-	//foreach(MateHit& hit, non_redundant)
+	//BOOST_FOREACH(MateHit& hit, non_redundant)
 		//assert(hit.collapse_mass() <= 1 || !hit.is_multi());
 	
 	//non_redundant.erase(remove_if(non_redundant.begin(),non_redundant.end(),has_no_collapse_mass), non_redundant.end()); 
@@ -311,6 +311,11 @@ bool mate_hit_lt(const MateHit& lhs, const MateHit& rhs)
 	if (lhs.is_multi() != rhs.is_multi())
 	{
 		return rhs.is_multi();
+	}
+    
+    if (lhs.read_group_props() != rhs.read_group_props())
+	{
+		return lhs.read_group_props() < rhs.read_group_props();
 	}
 	
 	return false;
@@ -728,7 +733,7 @@ void HitFactory::finalize_rg_props()
     }
 }
 
-static const unsigned MAX_HEADER_LEN = 4 * 1024 * 1024; // 4 MB
+static const unsigned MAX_HEADER_LEN = 64 * 1024 * 1024; // 4 MB
 
 bool BAMHitFactory::inspect_header()
 {
@@ -740,11 +745,11 @@ bool BAMHitFactory::inspect_header()
         return false;
     }
     
-    if (header->l_text >= MAX_HEADER_LEN)
-    {
-        fprintf(stderr, "Warning: BAM header too large\n");
-        return false;
-    }
+//    if (header->l_text >= MAX_HEADER_LEN)
+//    {
+//        fprintf(stderr, "Warning: BAM header too large\n");
+//        return false;
+//    }
 
 	if (header->l_text == 0)
 	{
@@ -903,6 +908,7 @@ bool SAMHitFactory::get_hit_from_buf(const char* orig_bwt_buf,
 		if (length <= 0)
 		{
 			fprintf (stderr, "SAM error on line %d: CIGAR op has zero length\n", _line_num);
+            fprintf (stderr,"%s\n", orig_bwt_buf);
 			return false;
 		}
 		char op_char = toupper(*t);

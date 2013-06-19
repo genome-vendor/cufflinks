@@ -1,5 +1,5 @@
-#include "gff_utils.h"
 #include "GArgs.h"
+#include "gff_utils.h"
 #include <ctype.h>
 // don't care about cdb compression
 //#ifdef ENABLE_COMPRESSION
@@ -422,53 +422,55 @@ bool process_transcript(GFastaDb& gfasta, GffObj& gffrec) {
     int strandNum=0;
     int phaseNum=0;
   CDS_CHECK:
-    cdsnt=gffrec.getSpliced(faseq, true, &seqlen,NULL,NULL,&seglst);
+    cdsnt=gffrec.getSpliced(faseq, true, &seqlen, NULL, NULL, &seglst);
     if (cdsnt==NULL) trprint=false;
-    if (validCDSonly) {
-       cdsaa=translateDNA(cdsnt, aalen, seqlen);
-       char* p=strchr(cdsaa,'.');
-       hasStop=false;
-       if (p!=NULL) {
-            if (p-cdsaa>=aalen-2) { //stop found as the last codon
-                    *p='0';//remove it
-                    hasStop=true;
-                    if (aalen-2==p-cdsaa) {
-                      //previous to last codon is the stop codon
-                      //so correct the CDS stop accordingly
-                      adjust_stopcodon(gffrec,-3, &seglst);
-                      stopCodonAdjust=0; //clear artificial stop adjustment
-                      seqlen-=3;
-                      cdsnt[seqlen]=0;
+    else { //has CDS
+      if (validCDSonly) {
+         cdsaa=translateDNA(cdsnt, aalen, seqlen);
+         char* p=strchr(cdsaa,'.');
+         hasStop=false;
+         if (p!=NULL) {
+              if (p-cdsaa>=aalen-2) { //stop found as the last codon
+                      *p='0';//remove it
+                      hasStop=true;
+                      if (aalen-2==p-cdsaa) {
+                        //previous to last codon is the stop codon
+                        //so correct the CDS stop accordingly
+                        adjust_stopcodon(gffrec,-3, &seglst);
+                        stopCodonAdjust=0; //clear artificial stop adjustment
+                        seqlen-=3;
+                        cdsnt[seqlen]=0;
+                        }
+                      aalen=p-cdsaa;
                       }
-                    aalen=p-cdsaa;
-                    }
-                 else {//stop found before the last codon
-                    trprint=false;
-                    }
-            }//stop codon found
-       if (trprint==false) { //failed CDS validity check
-         //in-frame stop codon found
-         if (altPhases && phaseNum<3) {
-            phaseNum++;
-            gffrec.CDphase = '0'+((mCDphase+phaseNum)%3);
-            GFREE(cdsaa);
-            goto CDS_CHECK;
-            }
-         if (gffrec.exons.Count()==1 && bothStrands) {
-            strandNum++;
-            phaseNum=0;
-            if (strandNum<2) {
-               GFREE(cdsaa);
-               gffrec.strand = (gffrec.strand=='-') ? '+':'-';
-               goto CDS_CHECK; //repeat the CDS check for a different frame
-               }
-            }
-         if (verbose) GMessage("In-frame STOP found for '%s'\n",gffrec.getID());
-         } //has in-frame STOP
-       if (fullCDSonly) {
-           if (!hasStop || cdsaa[0]!='M') trprint=false;
-           }
-       } // CDS check requested
+                   else {//stop found before the last codon
+                      trprint=false;
+                      }
+              }//stop codon found
+         if (trprint==false) { //failed CDS validity check
+           //in-frame stop codon found
+           if (altPhases && phaseNum<3) {
+              phaseNum++;
+              gffrec.CDphase = '0'+((mCDphase+phaseNum)%3);
+              GFREE(cdsaa);
+              goto CDS_CHECK;
+              }
+           if (gffrec.exons.Count()==1 && bothStrands) {
+              strandNum++;
+              phaseNum=0;
+              if (strandNum<2) {
+                 GFREE(cdsaa);
+                 gffrec.strand = (gffrec.strand=='-') ? '+':'-';
+                 goto CDS_CHECK; //repeat the CDS check for a different frame
+                 }
+              }
+           if (verbose) GMessage("In-frame STOP found for '%s'\n",gffrec.getID());
+           } //has in-frame STOP
+         if (fullCDSonly) {
+             if (!hasStop || cdsaa[0]!='M') trprint=false;
+             }
+         } // CDS check requested
+      } //has CDS
     } //translation or codon check/output was requested
   if (!trprint) {
     GFREE(cdsnt);

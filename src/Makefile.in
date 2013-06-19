@@ -49,8 +49,10 @@ DIST_COMMON = $(dist_bin_SCRIPTS) $(noinst_HEADERS) \
 	$(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/ax_boost_base.m4 \
-	$(top_srcdir)/ax_boost_thread.m4 $(top_srcdir)/ax_bam.m4 \
-	$(top_srcdir)/ax_check_zlib.m4 $(top_srcdir)/configure.ac
+	$(top_srcdir)/ax_boost_thread.m4 \
+	$(top_srcdir)/ax_boost_system.m4 $(top_srcdir)/ax_bam.m4 \
+	$(top_srcdir)/ax_check_zlib.m4 $(top_srcdir)/ax_check_eigen.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(install_sh) -d
@@ -101,25 +103,26 @@ am_compress_gtf_OBJECTS = compress_gtf.$(OBJEXT)
 compress_gtf_OBJECTS = $(am_compress_gtf_OBJECTS)
 am__DEPENDENCIES_1 =
 compress_gtf_DEPENDENCIES = libcufflinks.a libgc.a \
-	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1)
+	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
+	$(am__DEPENDENCIES_1)
 am_cuffcompare_OBJECTS = cuffcompare.$(OBJEXT)
 cuffcompare_OBJECTS = $(am_cuffcompare_OBJECTS)
 cuffcompare_DEPENDENCIES = libgc.a
 am_cuffdiff_OBJECTS = cuffdiff.$(OBJEXT)
 cuffdiff_OBJECTS = $(am_cuffdiff_OBJECTS)
 cuffdiff_DEPENDENCIES = libcufflinks.a libgc.a $(am__DEPENDENCIES_1) \
-	$(am__DEPENDENCIES_1)
+	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1)
 am_cufflinks_OBJECTS = cufflinks.$(OBJEXT)
 cufflinks_OBJECTS = $(am_cufflinks_OBJECTS)
 cufflinks_DEPENDENCIES = libcufflinks.a libgc.a $(am__DEPENDENCIES_1) \
-	$(am__DEPENDENCIES_1)
+	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1)
 am_gffread_OBJECTS = gffread.$(OBJEXT)
 gffread_OBJECTS = $(am_gffread_OBJECTS)
 gffread_DEPENDENCIES = libgc.a
 am_gtf_to_sam_OBJECTS = gtf_to_sam.$(OBJEXT)
 gtf_to_sam_OBJECTS = $(am_gtf_to_sam_OBJECTS)
 gtf_to_sam_DEPENDENCIES = libcufflinks.a libgc.a $(am__DEPENDENCIES_1) \
-	$(am__DEPENDENCIES_1)
+	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1)
 dist_binSCRIPT_INSTALL = $(INSTALL_SCRIPT)
 SCRIPTS = $(dist_bin_SCRIPTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
@@ -159,6 +162,7 @@ BAM_LDFLAGS = @BAM_LDFLAGS@
 BAM_LIB = @BAM_LIB@
 BOOST_CPPFLAGS = @BOOST_CPPFLAGS@
 BOOST_LDFLAGS = @BOOST_LDFLAGS@
+BOOST_SYSTEM_LIB = @BOOST_SYSTEM_LIB@
 BOOST_THREAD_LIB = @BOOST_THREAD_LIB@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
@@ -175,6 +179,7 @@ ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
 EGREP = @EGREP@
+EIGEN_CPPFLAGS = @EIGEN_CPPFLAGS@
 EXEEXT = @EXEEXT@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
@@ -269,6 +274,7 @@ noinst_HEADERS = \
 	GFastaIndex.h \
 	gff.h \
 	GHash.hh \
+	GVec.hh \
 	GList.hh \
 	GStr.h \
 	assemble.h \
@@ -339,7 +345,9 @@ noinst_HEADERS = \
     locfit/vari.hpp \
     replicates.h \
     multireads.h \
-	common.h 
+    rounding.h \
+    negative_binomial_distribution.h \
+	common.h
 
 noinst_LIBRARIES = libcufflinks.a libgc.a
 libcufflinks_a_SOURCES = \
@@ -437,25 +445,25 @@ CLEANFILES = $(bin_SCRIPTS)
 #.py:
 #	(echo '#!$(PYTHON)'; sed '/^#!/d' $<) > $@
 cufflinks_SOURCES = cufflinks.cpp  
-cufflinks_LDADD = libcufflinks.a libgc.a $(BOOST_THREAD_LIB) $(BAM_LIB) 
-cufflinks_LDFLAGS = $(BOOST_LDFLAGS) $(BAM_LDFLAGS) #$(ZLIB_LDFLAGS) 
+cufflinks_LDADD = libcufflinks.a libgc.a $(BOOST_THREAD_LIB) $(BOOST_SYSTEM_LIB)  $(BAM_LIB) 
+cufflinks_LDFLAGS = $(LDFLAGS) $(BOOST_LDFLAGS) $(BAM_LDFLAGS) #$(ZLIB_LDFLAGS) 
 cuffcompare_SOURCES = cuffcompare.cpp
 cuffcompare_LDADD = libgc.a
 gffread_SOURCES = gffread.cpp
 gffread_LDADD = libgc.a
 cuffdiff_SOURCES = cuffdiff.cpp
-cuffdiff_LDADD = libcufflinks.a libgc.a $(BOOST_THREAD_LIB) $(BAM_LIB)
-cuffdiff_LDFLAGS = $(BOOST_LDFLAGS) $(BAM_LDFLAGS) 
+cuffdiff_LDADD = libcufflinks.a libgc.a $(BOOST_THREAD_LIB) $(BOOST_SYSTEM_LIB) $(BAM_LIB)
+cuffdiff_LDFLAGS = $(LDFLAGS) $(BOOST_LDFLAGS) $(BAM_LDFLAGS) 
 gtf_to_sam_SOURCES = gtf_to_sam.cpp
-gtf_to_sam_LDADD = libcufflinks.a libgc.a $(BOOST_THREAD_LIB) $(BAM_LIB)
-gtf_to_sam_LDFLAGS = $(BOOST_LDFLAGS) $(BAM_LDFLAGS) 
+gtf_to_sam_LDADD = libcufflinks.a libgc.a $(BOOST_THREAD_LIB) $(BOOST_SYSTEM_LIB) $(BAM_LIB)
+gtf_to_sam_LDFLAGS = $(LDFLAGS) $(BOOST_LDFLAGS) $(BAM_LDFLAGS) 
 
 #cuffcluster_SOURCES = cuffcluster.cpp
-#cuffcluster_LDADD = libcufflinks.a libgc.a $(BOOST_THREAD_LIB) $(BAM_LIB)
-#cuffcluster_LDFLAGS =  $(BOOST_LDFLAGS) $(BAM_LDFLAGS) 
+#cuffcluster_LDADD = libcufflinks.a libgc.a $(BOOST_THREAD_LIB) $(BOOST_SYSTEM_LIB) $(BAM_LIB)
+#cuffcluster_LDFLAGS =  $(LDFLAGS) $(BOOST_LDFLAGS) $(BAM_LDFLAGS) 
 compress_gtf_SOURCES = compress_gtf.cpp
-compress_gtf_LDADD = libcufflinks.a libgc.a $(BOOST_THREAD_LIB) $(BAM_LIB)
-compress_gtf_LDFLAGS = $(BOOST_LDFLAGS) $(BAM_LDFLAGS) 
+compress_gtf_LDADD = libcufflinks.a libgc.a $(BOOST_THREAD_LIB) $(BOOST_SYSTEM_LIB) $(BAM_LIB)
+compress_gtf_LDFLAGS = $(LDFLAGS) $(BOOST_LDFLAGS) $(BAM_LDFLAGS) 
 all: all-am
 
 .SUFFIXES:
@@ -1571,8 +1579,8 @@ uninstall-am: uninstall-binPROGRAMS uninstall-dist_binSCRIPTS \
 
 
 #gtf_reads_SOURCES = gtf_reads.cpp
-#gtf_reads_LDADD = libcufflinks.a libgc.a $(BOOST_THREAD_LIB) $(BAM_LIB) 
-#gtf_reads_LDFLAGS =  $(BOOST_LDFLAGS) $(BAM_LDFLAGS) #$(ZLIB_LDFLAGS)
+#gtf_reads_LDADD = libcufflinks.a libgc.a $(BOOST_THREAD_LIB) $(BOOST_SYSTEM_LIB) $(BAM_LIB) 
+#gtf_reads_LDFLAGS =  $(LDFLAGS) $(BOOST_LDFLAGS) $(BAM_LDFLAGS) #$(ZLIB_LDFLAGS)
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

@@ -31,6 +31,7 @@
 #include "assemble.h"
 #include "biascorrection.h"
 #include "multireads.h"
+#include "replicates.h"
 
 using namespace std;
 
@@ -44,7 +45,7 @@ static struct option long_options[] = {
 // general options
 {"GTF",					    required_argument,		 0,			 'G'},
 {"GTF-guide",			    required_argument,		 0,			 'g'},
-{"mask-gtf",                required_argument,		 0,			 'M'},
+{"mask-file",                required_argument,		 0,			 'M'},
 {"library-type",		    required_argument,		 0,			 OPT_LIBRARY_TYPE},
 {"seed",                    required_argument,		 0,			 OPT_RANDOM_SEED},
 
@@ -85,7 +86,7 @@ static struct option long_options[] = {
 {"min-frags-per-transfrag",required_argument,		 0,			 OPT_MIN_FRAGS_PER_TRANSFRAG},
 {"min-intron-length",       required_argument,	     0,			 OPT_MIN_INTRON_LENGTH},
 {"max-bundle-length",       required_argument,		 0,			 OPT_MAX_BUNDLE_LENGTH},
-{"trim-3-dropoff-frac",     required_argument,		 0,			 OPT_3_PRIME_AVGCOV_THRESH},
+{"trim-3-dropoff-frac",     required_argument,		 0,			 OPT_3_PRIME_DROPOFF_FRAC},
 {"trim-3-avgcov-thresh",	required_argument,		 0,			 OPT_3_PRIME_AVGCOV_THRESH},
     
 {"3-overhang-tolerance",	required_argument,		 0,			 OPT_3_OVERHANG_TOLERANCE},
@@ -96,6 +97,14 @@ static struct option long_options[] = {
 {"tile-read-sep",           required_argument,       0,          OPT_TILE_SEP}, 
     
 {"max-bundle-frags",        required_argument,        0,          OPT_MAX_FRAGS_PER_BUNDLE}, 
+{"num-frag-count-draws",	required_argument,		 0,			 OPT_NUM_FRAG_COUNT_DRAWS},
+{"num-frag-assign-draws",	required_argument,		 0,			 OPT_NUM_FRAG_ASSIGN_DRAWS},
+{"max-multiread-fraction",	required_argument,		 0,			 OPT_MAX_MULTIREAD_FRACTION},
+{"overlap-radius",       	required_argument,		 0,			 OPT_OLAP_RADIUS},
+{"max-frag-multihits",      required_argument,       0,          OPT_FRAG_MAX_MULTIHITS},
+{"no-effective-length-correction",  no_argument,     0,          OPT_NO_EFFECTIVE_LENGTH_CORRECTION},
+{"library-norm-method",     required_argument,       0,          OPT_LIB_NORM_METHOD},
+{"no-length-correction",  no_argument,     0,          OPT_NO_LENGTH_CORRECTION},
 {0, 0, 0, 0} // terminator
 };
 
@@ -118,15 +127,21 @@ void print_usage()
     fprintf(stderr, "  -b/--frag-bias-correct       use bias correction - reference fasta required        [ default:   NULL ]\n");
     fprintf(stderr, "  -u/--multi-read-correct      use 'rescue method' for multi-reads (more accurate)   [ default:  FALSE ]\n");
     fprintf(stderr, "  --library-type               library prep used for input reads                     [ default:  below ]\n");
+    fprintf(stderr, "  --library-norm-method        Method used to normalize library sizes                [ default:  below ]\n");
     
     fprintf(stderr, "\nAdvanced Abundance Estimation Options:\n");
     fprintf(stderr, "  -m/--frag-len-mean           average fragment length (unpaired reads only)         [ default:    200 ]\n");
     fprintf(stderr, "  -s/--frag-len-std-dev        fragment length std deviation (unpaired reads only)   [ default:     80 ]\n");
-    fprintf(stderr, "  --upper-quartile-norm        use upper-quartile normalization                      [ default:  FALSE ]\n");
     fprintf(stderr, "  --max-mle-iterations         maximum iterations allowed for MLE calculation        [ default:   5000 ]\n");
-    fprintf(stderr, "  --num-importance-samples     number of importance samples for MAP restimation      [ default:   1000 ]\n");
     fprintf(stderr, "  --compatible-hits-norm       count hits compatible with reference RNAs only        [ default:  FALSE ]\n");
     fprintf(stderr, "  --total-hits-norm            count all hits for normalization                      [ default:  TRUE  ]\n");
+    fprintf(stderr, "  --num-frag-count-draws       Number of fragment generation samples                 [ default:    100 ]\n");
+    fprintf(stderr, "  --num-frag-assign-draws      Number of fragment assignment samples per generation  [ default:     50 ]\n");
+    fprintf(stderr, "  --max-frag-multihits         Maximum number of alignments allowed per fragment     [ default: unlim  ]\n");
+    fprintf(stderr, "  --no-effective-length-correction   No effective length correction                  [ default:  FALSE ]\n");
+    fprintf(stderr, "  --no-length-correction       No length correction                                  [ default:  FALSE ]\n");
+    fprintf(stderr, "  -N/--upper-quartile-norm     Deprecated, use --library-norm-method                 [    DEPRECATED   ]\n");
+    fprintf(stderr, "  --raw-mapped-norm            Deprecated, use --library-norm-method                 [    DEPRECATED   ]\n");
     
     fprintf(stderr, "\nAdvanced Assembly Options:\n");
     fprintf(stderr, "  -L/--label                   assembled transcripts have this ID prefix             [ default:   CUFF ]\n");
@@ -142,6 +157,8 @@ void print_usage()
     fprintf(stderr, "  --min-intron-length          minimum intron size allowed in genome                 [ default:     50 ]\n");
     fprintf(stderr, "  --trim-3-avgcov-thresh       minimum avg coverage required to attempt 3' trimming  [ default:     10 ]\n");
     fprintf(stderr, "  --trim-3-dropoff-frac        fraction of avg coverage below which to trim 3' end   [ default:    0.1 ]\n");
+    fprintf(stderr, "  --max-multiread-fraction     maximum fraction of allowed multireads per transcript [ default:   0.75 ]\n");
+    fprintf(stderr, "  --overlap-radius             maximum gap size to fill between transfrags (in bp)   [ default:     50 ]\n");
     
     fprintf(stderr, "\nAdvanced Reference Annotation Guided Assembly Options:\n");
 //    fprintf(stderr, "  --tile-read-len              length of faux-reads                                  [ default:    405 ]\n");
@@ -155,6 +172,7 @@ void print_usage()
     fprintf(stderr, "  -q/--quiet                   log-friendly quiet processing (no progress bar)       [ default:  FALSE ]\n");
     fprintf(stderr, "  --no-update-check            do not contact server to check for update availability[ default:  FALSE ]\n");
     print_library_table();
+    print_lib_norm_method_table();
 }
 
 int parse_options(int argc, char** argv)
@@ -162,7 +180,7 @@ int parse_options(int argc, char** argv)
     int option_index = 0;
     int next_option;
 	bool F_set = false;
-	
+	string lib_norm_method_str;
     do {
         next_option = getopt_long(argc, argv, short_options, long_options, &option_index);
         switch (next_option) {
@@ -268,8 +286,8 @@ int parse_options(int argc, char** argv)
 			}
 			case 'N':
             {
-            	use_quartile_norm = true;
-            	break;
+            	//lib_norm_method_str = "quartile";
+                break;
             }
 
             case 'o':
@@ -288,7 +306,7 @@ int parse_options(int argc, char** argv)
 				corr_multi = true;
 				break;
 			}
-      case OPT_LIBRARY_TYPE:
+            case OPT_LIBRARY_TYPE:
 			{
 				library_type = optarg;
 				break;
@@ -331,11 +349,6 @@ int parse_options(int argc, char** argv)
             case OPT_OUTPUT_BIAS_PARAMS:
             {
                 output_bias_params = true;
-                break;
-            }
-            case OPT_USE_EM:
-            {
-                use_em = false;
                 break;
             }
             case OPT_COLLAPSE_COND_PROB:
@@ -393,6 +406,41 @@ int parse_options(int argc, char** argv)
                 max_frags_per_bundle = parseInt(0, "--max-bundle-frags must be at least 0", print_usage);
                 break;
             }
+            case OPT_NUM_FRAG_COUNT_DRAWS:
+            {
+                num_frag_count_draws = parseInt(1, "--num-frag-count-draws must be at least 1", print_usage);
+                break;
+            }
+            case OPT_NUM_FRAG_ASSIGN_DRAWS:
+            {
+                num_frag_assignments = parseInt(1, "--num-frag-assign-draws must be at least 1", print_usage);
+                break;
+            }
+            case OPT_MAX_MULTIREAD_FRACTION:
+            {
+                max_multiread_fraction = parseFloat(0, 1.0, "--max-multiread-fraction must be between 0 and 1.0", print_usage);
+                break;
+            }
+            case OPT_FRAG_MAX_MULTIHITS:
+            {
+                max_frag_multihits = parseInt(1, "--max-frag-multihits must be at least 1", print_usage);
+                break;
+            }
+            case OPT_OLAP_RADIUS:
+            {
+                olap_radius = parseInt(1, "--max-multiread-fraction must be at least 1", print_usage);
+                break;
+            }
+            case OPT_NO_EFFECTIVE_LENGTH_CORRECTION:
+            {
+                no_effective_length_correction = true;
+                break;
+            }
+            case OPT_NO_LENGTH_CORRECTION:
+            {
+                no_length_correction = true;
+                break;
+            }
 			default:
 				print_usage();
 				return 1;
@@ -430,6 +478,24 @@ int parse_options(int argc, char** argv)
 //            }
             global_read_properties = &lib_itr->second;
         }
+    }
+    
+    // Set the library size normalization method to use
+    if (lib_norm_method_str == "")
+    {
+        lib_norm_method_str = default_cufflinks_lib_norm_method;
+    }
+    
+    map<string, LibNormalizationMethod>::iterator lib_norm_itr =
+    lib_norm_method_table.find(lib_norm_method_str);
+    if (lib_norm_itr == lib_norm_method_table.end())
+    {
+        fprintf(stderr, "Error: Dispersion method %s not supported\n", lib_norm_method_str.c_str());
+        exit(1);
+    }
+    else
+    {
+        lib_norm_method = lib_norm_itr->second;
     }
     
     if (use_total_mass && use_compat_mass)
@@ -471,7 +537,7 @@ void combine_strand_assemblies(vector<Scaffold>& lhs,
 	{
 		for(size_t l = 0; l < lhs.size(); ++l)
 		{			
-			foreach(shared_ptr<Scaffold> ref_scaff, *ref_scaffs)
+			BOOST_FOREACH(shared_ptr<Scaffold> ref_scaff, *ref_scaffs)
 			{
                 // if we're past all the overlaps, just stop
 				if (ref_scaff->left() >= lhs[l].right() + overhang_3)
@@ -504,7 +570,7 @@ void combine_strand_assemblies(vector<Scaffold>& lhs,
 		}
 		for(size_t r = 0; r < rhs.size(); ++r)
 		{			
-			foreach(shared_ptr<Scaffold> ref_scaff, *ref_scaffs)
+			BOOST_FOREACH(shared_ptr<Scaffold> ref_scaff, *ref_scaffs)
 			{
 				if (ref_scaff->left() >= rhs[r].right() + overhang_3)
 				{
@@ -665,7 +731,7 @@ bool scaffolds_for_bundle(const HitBundle& bundle,
 	if (ref_guided && enable_faux_reads && !hits.empty())
 	{
 		vector<Scaffold> pseudohits;
-		foreach(shared_ptr<Scaffold const> ref_scaff, *ref_scaffs)
+		BOOST_FOREACH(shared_ptr<Scaffold const> ref_scaff, *ref_scaffs)
 		{
 			ref_scaff->tile_with_scaffs(pseudohits, tile_len, tile_off);
 		}
@@ -842,7 +908,7 @@ bool scaffolds_for_bundle(const HitBundle& bundle,
 	}
 	if (assembled_successfully)
 	{
-		foreach(Scaffold& scaff, tmp_scaffs)
+		BOOST_FOREACH(Scaffold& scaff, tmp_scaffs)
 		{
 			scaffolds.push_back(shared_ptr<Scaffold>(new Scaffold(scaff)));
 		}
@@ -879,14 +945,13 @@ void quantitate_transcript_cluster(AbundanceGroup& transfrag_cluster,
 	vector<double> gammas;
     
 	vector<MateHit> hits_in_cluster;
-	
+    
 	get_alignments_from_scaffolds(transfrag_cluster.abundances(),
 								  hits_in_cluster);
 	
-	
 	// need the avg read length for depth of coverage calculation 
 	double avg_read_length = 0;
-	foreach (MateHit& hit, hits_in_cluster)
+	BOOST_FOREACH (MateHit& hit, hits_in_cluster)
 	{
 		if (hit.left_alignment())
 			avg_read_length += hit.left_alignment()->read_len(); 
@@ -905,7 +970,7 @@ void quantitate_transcript_cluster(AbundanceGroup& transfrag_cluster,
         }
         else
         {
-            foreach(shared_ptr<Abundance>  ab, transfrag_cluster.abundances())
+            BOOST_FOREACH(shared_ptr<Abundance>  ab, transfrag_cluster.abundances())
             {
                 ab->status(NUMERIC_HI_DATA);
             }
@@ -939,7 +1004,7 @@ void quantitate_transcript_cluster(AbundanceGroup& transfrag_cluster,
         {
             shared_ptr<Abundance> ab_i = abundances[i];
             bool found = false;
-            foreach (shared_ptr<Abundance> ab_j, filtered_transcripts)
+            BOOST_FOREACH (shared_ptr<Abundance> ab_j, filtered_transcripts)
             {
                 if (ab_i == ab_j)
                 {
@@ -961,7 +1026,7 @@ void quantitate_transcript_cluster(AbundanceGroup& transfrag_cluster,
 										 transfrags_by_strand);
 	
 	
-	foreach (const AbundanceGroup& strand_group, transfrags_by_strand)
+	BOOST_FOREACH (const AbundanceGroup& strand_group, transfrags_by_strand)
 	{	
 		vector<AbundanceGroup> transfrags_by_gene;
 		
@@ -974,7 +1039,7 @@ void quantitate_transcript_cluster(AbundanceGroup& transfrag_cluster,
 			cluster_transcripts<ConnectByExonOverlap>(strand_group, transfrags_by_gene);
 		}
 
-		foreach(const AbundanceGroup& gene, transfrags_by_gene)
+		BOOST_FOREACH(const AbundanceGroup& gene, transfrags_by_gene)
 		{
 			const vector<shared_ptr<Abundance> >& iso_abundances = gene.abundances();
 			vector<Isoform> isoforms;
@@ -985,7 +1050,7 @@ void quantitate_transcript_cluster(AbundanceGroup& transfrag_cluster,
 			string ref_gene_id = "";
 			
 			double major_isoform_FPKM = 0;
-			foreach (shared_ptr<Abundance> iso_ab, iso_abundances)
+			BOOST_FOREACH (shared_ptr<Abundance> iso_ab, iso_abundances)
 			{
 				if (iso_ab->transfrag()->is_ref())
 				{
@@ -1002,7 +1067,7 @@ void quantitate_transcript_cluster(AbundanceGroup& transfrag_cluster,
 				major_isoform_FPKM = max(iso_ab->FPKM(), major_isoform_FPKM);
 			}
 			
-			foreach (shared_ptr<Abundance> iso_ab, iso_abundances)
+			BOOST_FOREACH (shared_ptr<Abundance> iso_ab, iso_abundances)
 			{
 				// Calculate transcript depth of coverage and FMI from FPKM
 				double FPKM = iso_ab->FPKM();
@@ -1053,12 +1118,14 @@ void quantitate_transcript_cluster(AbundanceGroup& transfrag_cluster,
 }
 
 void quantitate_transcript_clusters(vector<shared_ptr<Scaffold> >& scaffolds,
-									long double total_map_mass,
+									shared_ptr<ReadGroupProperties> rg_props,
 									vector<Gene>& genes,
                                     bool bundle_too_large)
 {	
 	//vector<shared_ptr<Scaffold> > partials;
 	//vector<shared_ptr<Scaffold> > completes;
+    
+    long double total_map_mass = rg_props->normalized_map_mass();
     
     vector<shared_ptr<Scaffold> > split_partials;
     // Cleave the partials at their unknowns to minimize FPKM dilation on  
@@ -1067,7 +1134,7 @@ void quantitate_transcript_clusters(vector<shared_ptr<Scaffold> >& scaffolds,
     { 
         vector<Scaffold> c; 
         scaffolds[i]->get_complete_subscaffolds(c); 
-        foreach (Scaffold& s, c)
+        BOOST_FOREACH (Scaffold& s, c)
         {
             split_partials.push_back(shared_ptr<Scaffold>(new Scaffold(s))); 
         }
@@ -1076,7 +1143,7 @@ void quantitate_transcript_clusters(vector<shared_ptr<Scaffold> >& scaffolds,
     scaffolds = split_partials;
 	
 	vector<shared_ptr<Abundance> > abundances;
-	foreach(shared_ptr<Scaffold> s, scaffolds)
+	BOOST_FOREACH(shared_ptr<Scaffold> s, scaffolds)
 	{
 		TranscriptAbundance* pT = new TranscriptAbundance;
 		pT->transfrag(s);
@@ -1086,12 +1153,17 @@ void quantitate_transcript_clusters(vector<shared_ptr<Scaffold> >& scaffolds,
 	
 	AbundanceGroup transfrags = AbundanceGroup(abundances);
 	
+    set<shared_ptr<ReadGroupProperties const> > read_groups;
+    read_groups.insert(rg_props);
+    
+    transfrags.init_rg_props(read_groups);
+    
 	vector<AbundanceGroup> transfrags_by_cluster;
 	
 	cluster_transcripts<ConnectByExonOverlap>(transfrags,
                                               transfrags_by_cluster);
 	
-	foreach(AbundanceGroup& cluster, transfrags_by_cluster)
+	BOOST_FOREACH(AbundanceGroup& cluster, transfrags_by_cluster)
 	{
 		quantitate_transcript_cluster(cluster, total_map_mass, genes, bundle_too_large);
 	}
@@ -1100,13 +1172,15 @@ void quantitate_transcript_clusters(vector<shared_ptr<Scaffold> >& scaffolds,
 
 void assemble_bundle(const RefSequenceTable& rt,
 					 HitBundle* bundle_ptr, 
-					 BiasLearner* bl_ptr,
-					 long double map_mass,
+					 shared_ptr<ReadGroupProperties> rg_props,
+                     shared_ptr<BiasLearner> bl_ptr,
 					 FILE* ftranscripts,
 					 FILE* fgene_abundances,
 					 FILE* ftrans_abundances,
 					 FILE* fskipped)
 {
+    long double map_mass = rg_props->normalized_map_mass();
+    
 	HitBundle& bundle = *bundle_ptr;
     
     char bundle_label_buf[2048];
@@ -1138,11 +1212,6 @@ void assemble_bundle(const RefSequenceTable& rt,
 	{
 		case REF_DRIVEN:
 			scaffolds = bundle.ref_scaffolds();
-			if (!final_est_run && scaffolds.size() != 1) // Only learn bias on single isoforms
-			{
-				delete bundle_ptr;
-				return;
-			}
 			break;
 		case REF_GUIDED:
 			successfully_assembled = scaffolds_for_bundle(bundle, scaffolds, &bundle.ref_scaffolds());
@@ -1202,8 +1271,8 @@ void assemble_bundle(const RefSequenceTable& rt,
     
     // FIXME: this routine does more than just quantitation, and should be 
     // renamed or refactored.
-    quantitate_transcript_clusters(scaffolds, 
-                                   map_mass,
+    quantitate_transcript_clusters(scaffolds,
+                                   rg_props,
                                    genes,
                                    bundle_too_large);
     
@@ -1217,9 +1286,9 @@ void assemble_bundle(const RefSequenceTable& rt,
 	{
 		for (size_t i = 0; i < genes.size(); ++i)
 		{
-			if (genes[i].isoforms().size() == 1)
-			{
-				bl_ptr -> preProcessTranscript(genes[i].isoforms()[0].scaffold()); 
+            for (size_t j = 0; j <genes[i].isoforms().size(); ++j)
+            {
+                bl_ptr -> preProcessTranscript(genes[i].isoforms()[j].scaffold()); 
 			}
 		}
 	}
@@ -1233,10 +1302,10 @@ void assemble_bundle(const RefSequenceTable& rt,
     if (init_bundle_mode == REF_GUIDED)
     {
         hit_introns = new set<AugmentedCuffOp>();
-        foreach(const MateHit& h, bundle.non_redundant_hits())
+        BOOST_FOREACH(const MateHit& h, bundle.non_redundant_hits())
         {
             Scaffold s(h);
-            foreach (AugmentedCuffOp a, s.augmented_ops())
+            BOOST_FOREACH (AugmentedCuffOp a, s.augmented_ops())
             {
                 if (a.opcode == CUFF_INTRON)
                 {
@@ -1365,7 +1434,7 @@ void assemble_bundle(const RefSequenceTable& rt,
 	delete bundle_ptr;
 }
 
-bool assemble_hits(BundleFactory& bundle_factory, BiasLearner* bl_ptr)
+bool assemble_hits(BundleFactory& bundle_factory, shared_ptr<BiasLearner> bl_ptr)
 {
 	//srand(time(0));
 		
@@ -1456,9 +1525,9 @@ bool assemble_hits(BundleFactory& bundle_factory, BiasLearner* bl_ptr)
 		
 		thread asmbl(assemble_bundle,
 					 boost::cref(rt), 
-					 bundle_ptr, 
+					 bundle_ptr,
+                     bundle_factory.read_group_properties(),
 					 bl_ptr,
-					 bundle_factory.read_group_properties()->normalized_map_mass(),
 					 ftranscripts, 
 					 fgene_abundances,
 					 ftrans_abundances,
@@ -1466,8 +1535,8 @@ bool assemble_hits(BundleFactory& bundle_factory, BiasLearner* bl_ptr)
 #else
 		assemble_bundle(boost::cref(rt), 
 						bundle_ptr, 
-						bl_ptr,
-						bundle_factory.read_group_properties()->normalized_map_mass(),
+						bundle_factory.read_group_properties(),
+                        bl_ptr,
 						ftranscripts,
 						fgene_abundances,
 						ftrans_abundances,
@@ -1499,7 +1568,11 @@ bool assemble_hits(BundleFactory& bundle_factory, BiasLearner* bl_ptr)
 	{
 		bl_ptr->normalizeParameters();
         if (output_bias_params)
-            bl_ptr->output();
+        {
+            
+            FILE* output_file = fopen(string(output_dir + "/bias_params.info").c_str(), "w");
+            bl_ptr->output(output_file, user_label, 0);
+        }
 	}
 	
 	fclose(ftranscripts);
@@ -1557,24 +1630,34 @@ void driver(const string& hit_file_name, FILE* ref_gtf, FILE* mask_gtf)
         bundle_factory.set_mask_rnas(mask_rnas);
     }
     
-    vector<LocusCount> count_table;
-    if (bundle_mode != HIT_DRIVEN)
-        inspect_map(bundle_factory, NULL, count_table);
-    else 
-        inspect_map(bundle_factory, &bad_introns, count_table);
+    vector<LocusCount> compatible_count_table;
+    vector<LocusCount> total_count_table;
     
+    if (bundle_mode != HIT_DRIVEN)
+        inspect_map(bundle_factory, NULL, compatible_count_table, total_count_table);
+    else 
+        inspect_map(bundle_factory, &bad_introns, compatible_count_table, total_count_table);
+    
+    rg_props->raw_compatible_counts(compatible_count_table);
+    rg_props->raw_total_counts(total_count_table);
+    
+    vector<shared_ptr<ReadGroupProperties> > read_groups;
+    read_groups.push_back(rg_props);
+    
+    normalize_counts(read_groups);
+
     
     verbose_msg("%d ReadHits still live\n", num_deleted);
     verbose_msg("Found %lu reference contigs\n", rt.size());
     
-    foreach(shared_ptr<Scaffold> ref_scaff, ref_mRNAs)
+    BOOST_FOREACH(shared_ptr<Scaffold> ref_scaff, ref_mRNAs)
     {
         ref_scaff->clear_hits();
     }
     
     //fprintf(stderr, "ReadHit delete count is %d\n", num_deleted);
     
-	BiasLearner* bl_ptr = new BiasLearner(rg_props->frag_len_dist());
+	shared_ptr<BiasLearner> bl_ptr(new BiasLearner(rg_props->frag_len_dist()));
     bundle_factory.read_group_properties(rg_props);
 
 	//if (ref_gtf) -- why? bad introns are bad
@@ -1587,13 +1670,15 @@ void driver(const string& hit_file_name, FILE* ref_gtf, FILE* mask_gtf)
 	if (corr_bias || corr_multi) final_est_run = false;
 
 	assemble_hits(bundle_factory, bl_ptr);
-    
+
 	if (final_est_run) 
-    {
-        ref_mRNAs.clear();
-        return;
-    }
-    
+	{
+	  delete &bundle_factory;
+	  //delete bl_ptr;
+	  ref_mRNAs.clear();
+	  return;
+	}
+
 	hit_factory->reset();
 	delete &bundle_factory;
 	BundleFactory bundle_factory2(hit_factory, REF_DRIVEN);
@@ -1627,11 +1712,14 @@ void driver(const string& hit_file_name, FILE* ref_gtf, FILE* mask_gtf)
 	final_est_run = true;
 	assemble_hits(bundle_factory2, bl_ptr);
 	ref_mRNAs.clear();
+	//delete bl_ptr;
 }
 
 int main(int argc, char** argv)
 {	
     init_library_table();
+    init_cufflinks_lib_norm_method_table();
+    
   string cmdline;
   for (int i=0;i<argc;i++) {
     cmdline+=argv[i];

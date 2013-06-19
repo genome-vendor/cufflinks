@@ -49,19 +49,10 @@ struct SampleDifferenceMetaData
 
 // Stores the differential expression of an isoform or set of isoforms in two
 // different samples, along with a significance test statistic for the difference.
-struct SampleDifference
+class SampleDifference
 {
-	SampleDifference() :
-	sample_1(-1), 
-	sample_2(-1), 
-	value_1(0.0),
-	value_2(0.0),
-	test_stat(0.0),
-    p_value(1.0),
-	corrected_p(1.0),
-	tested_group_id(-1),
-	test_status(NOTEST),
-	significant(false){}
+public:
+	SampleDifference();
 	
 	size_t sample_1;
 	size_t sample_2;
@@ -73,12 +64,20 @@ struct SampleDifference
 	double p_value;
 	double corrected_p;
 	
-	size_t tested_group_id; // which scaffolds' FPKMs contribute
-	
     shared_ptr<SampleDifferenceMetaData> meta_data;
 
 	TestStatus test_status;
 	bool significant;
+    
+//    double sample_1_param_1;
+//    double sample_1_param_2;
+//    
+//    
+//    double sample_2_param_1;
+//    double sample_2_param_2;
+//    
+//    double null_param_1;
+//    double null_param_2;
 };
 
 typedef map<string, SampleDifference > SampleDiffs;
@@ -99,6 +98,21 @@ struct Outfiles
 	FILE* tss_group_fpkm_tracking_out;
 	FILE* gene_fpkm_tracking_out;
 	FILE* cds_fpkm_tracking_out;
+    
+    FILE* isoform_count_tracking_out;
+	FILE* tss_group_count_tracking_out;
+	FILE* gene_count_tracking_out;
+	FILE* cds_count_tracking_out;
+    
+    FILE* isoform_rep_tracking_out;
+	FILE* tss_group_rep_tracking_out;
+	FILE* gene_rep_tracking_out;
+	FILE* cds_rep_tracking_out;
+    
+    FILE* run_info_out;
+    FILE* read_group_info_out;
+    FILE* bias_out;
+    FILE* var_model_out;
 };
 
 struct Tests
@@ -115,12 +129,49 @@ struct Tests
 
 struct FPKMContext
 {
-	FPKMContext(double c, double r, double v, AbundanceStatus s)
-		: counts(c), FPKM(r), FPKM_variance(v), status(s) {}
-	double counts;
+	FPKMContext(double cm,
+                double cv,
+                double cuv,
+                double cdv,
+                const CountPerReplicateTable& cpr,
+                double r,
+                const FPKMPerReplicateTable& fpr,
+                double v,
+                double fcl,
+                double fch,
+                AbundanceStatus s,
+                const StatusPerReplicateTable& spr,
+                const vector<double>& fs,
+                double g)
+		: count_mean(cm),
+          count_var(cv),
+          count_uncertainty_var(cuv),
+          count_dispersion_var(cdv),
+          count_per_rep(cpr),
+          fpkm_per_rep(fpr),
+          FPKM(r),
+          FPKM_variance(v),
+          FPKM_conf_lo(fcl),
+          FPKM_conf_hi(fch),
+          status(s),
+          status_per_rep(spr),
+          fpkm_samples(fs),
+          gamma(g) {}
+    
+	double count_mean;
+    double count_var;
+    double count_uncertainty_var;
+    double count_dispersion_var;
+    CountPerReplicateTable count_per_rep;
+    FPKMPerReplicateTable fpkm_per_rep;
+    StatusPerReplicateTable status_per_rep;
 	double FPKM;
 	double FPKM_variance;
+    double FPKM_conf_lo;
+    double FPKM_conf_hi;
     AbundanceStatus status;
+    vector<double> fpkm_samples;
+    double gamma;
 };
 
 struct FPKMTracking
@@ -148,6 +199,14 @@ struct Tracking
 	FPKMTrackingTable tss_group_fpkm_tracking;
 	FPKMTrackingTable gene_fpkm_tracking;
 	FPKMTrackingTable cds_fpkm_tracking;
+    
+    void clear() 
+    {
+        isoform_fpkm_tracking.clear();
+        tss_group_fpkm_tracking.clear();
+        gene_fpkm_tracking.clear();
+        cds_fpkm_tracking.clear();
+    }
 };
 
 struct SampleAbundances
@@ -173,15 +232,15 @@ private:
     
 public:
     TestLauncher(int num_samples,
+                 const vector<pair<size_t, size_t> >& contrasts,
                  Tests* tests,
                  Tracking* tracking,
-                 bool ts,
                  ProgressBar* p_bar) 
     :
     _orig_workers(num_samples),
+    _contrasts(contrasts),
     _tests(tests),
     _tracking(tracking),
-    _samples_are_time_series(ts),
     _p_bar(p_bar)
     {
     }
@@ -194,8 +253,11 @@ public:
                          size_t factory_id);
     void test_finished_loci();
     void perform_testing(vector<shared_ptr<SampleAbundances> >& abundances);
+    void record_tracking_data(vector<shared_ptr<SampleAbundances> >& abundances);
     bool all_samples_reported_in(vector<shared_ptr<SampleAbundances> >& abundances);
     bool all_samples_reported_in(const string& locus_id);
+    
+    void clear_tracking_data() { _tracking->clear(); }
     
     typedef list<pair<string, vector<shared_ptr<SampleAbundances> > > > launcher_sample_table;
     
@@ -204,12 +266,12 @@ private:
     launcher_sample_table::iterator find_locus(const string& locus_id);
     
     int _orig_workers;
+    vector<pair<size_t, size_t> > _contrasts;
     launcher_sample_table _samples;
     Tests* _tests;
     Tracking* _tracking;
-    bool _samples_are_time_series;
     ProgressBar* _p_bar;
-
+    
 };
 
 extern double min_read_count;
@@ -222,9 +284,9 @@ void sample_worker(const RefSequenceTable& rt,
 
 void test_differential(const string& locus_tag,
 					   const vector<shared_ptr<SampleAbundances> >& samples,
+                       const vector<pair<size_t, size_t> >& constrasts,
 					   Tests& tests,
-					   Tracking& tracking,
-                       bool samples_are_time_series);
+					   Tracking& tracking);
 
 void dump_locus_variance_info(const string& filename);
 

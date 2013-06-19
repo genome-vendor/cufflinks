@@ -16,7 +16,7 @@
 # the debian-policy package
 
 
-EXECUTABLES="library_stats contig_to_chr_coords long_spanning_reads segment_juncs gtf_juncs juncs_db bed_to_juncs closure_juncs bam_merge wiggles prep_reads cufflinks mask_sam cufflinks_reports extract_reads fix_map_ordering sam_juncs bam2fastx sra_to_solid"
+EXECUTABLES="compress_gtf cuffdiff cuffmerge gtf_to_sam cuffcompare cufflinks gffread"
 MANPAGES=""
 PRIORITY=1
 EXE_VERSION_SUFFIX=2.1.1
