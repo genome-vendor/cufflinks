@@ -1,3 +1,9 @@
+cufflinks2.1.1 (2.1.1-1) unstable; urgency=low
+
+  * New version.
+
+ -- Scott Smith <ssmith@genome.wustl.edu>  Sat, 19 Jun 2013 15:00:00 -0600
+
 cufflinks1.3.0 (1.3.0-1) unstable; urgency=low
 
   * Initial Release.
